@@ -23,4 +23,6 @@ with tempfile.TemporaryDirectory() as td:
     assert enabled is True
     assert channels[0]['title'] == 'Demo channel'
     assert channels[0]['url'] == 'https://t.me/demo'
+    assert bot.PAYMENT_POLL_SECONDS >= 30
+    assert bot.OXAPAY_STATUS_URL.endswith('/payment')
     print('smoke tests passed')

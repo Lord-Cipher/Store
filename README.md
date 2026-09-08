@@ -9,6 +9,7 @@ This version replaces the legacy mixed-language experience with an English-first
 - Purchase history stored by user.
 - OxaPay invoice creation with `merchant_api_key` and `order_id`.
 - HMAC-SHA512 validation for OxaPay webhooks.
+- Automatic OxaPay payment-status polling when no public webhook URL is available.
 - Fulfillment only after OxaPay reports `Paid`.
 - Configurable referral percentage and automatic referral balance rewards.
 - Optional force-join gate with blue channel buttons and a green **Verify membership** button.
@@ -27,7 +28,7 @@ pip install -r requirements.txt
 
 2. Set `BOT_TOKEN`, `ADMIN_IDS`, and `OXAPAY_MERCHANT_API_KEY`. On a bot-hosting panel, add them in the host's **Environment Variables**, **Secrets**, or **Config Variables** section. If the host does not provide that section, copy `.env.example` to `.env`; the bot loads that file automatically. Do not commit the real `.env` file. The provided merchant key should be entered there locally, not committed to GitHub. Since it was shared in chat, rotate it in OxaPay if it has been exposed anywhere else.
 
-3. Set `PUBLIC_WEBHOOK_URL` to a public HTTPS origin. OxaPay cannot call localhost. The application exposes `POST /oxapay/webhook`; proxy that path to `WEBHOOK_PORT` if using Nginx, Caddy, or a platform load balancer.
+3. A public HTTPS URL is optional. If you have one, set `PUBLIC_WEBHOOK_URL`; OxaPay will send signed callbacks to `POST /oxapay/webhook`. If you do not have one, leave it empty: the bot automatically checks each pending invoice through OxaPay's official payment-information endpoint every `PAYMENT_POLL_SECONDS` seconds. The hosting process must remain online for this automatic checker to run.
 
 4. To require users to join one or more Telegram channels before using the shop, set `FORCE_JOIN_CHANNELS` using this format:
 

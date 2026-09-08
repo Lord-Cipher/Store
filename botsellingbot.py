@@ -56,6 +56,8 @@ DATA_FILE = Path(os.getenv("DATA_FILE", str(BASE_DIR / "bot_data.json")))
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 OXAPAY_API_KEY = os.getenv("OXAPAY_MERCHANT_API_KEY", "").strip()
 OXAPAY_API_URL = os.getenv("OXAPAY_API_URL", "https://api.oxapay.com/v1/payment/invoice").strip()
+OXAPAY_STATUS_URL = os.getenv("OXAPAY_STATUS_URL", "https://api.oxapay.com/v1/payment").rstrip("/")
+PAYMENT_POLL_SECONDS = max(30, int(os.getenv("PAYMENT_POLL_SECONDS", "45")))
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST", "0.0.0.0")
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", "8080"))
 PUBLIC_WEBHOOK_URL = os.getenv("PUBLIC_WEBHOOK_URL", "").rstrip("/")
@@ -419,7 +421,8 @@ async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: st
         if not data.get("payment_url"):
             raise RuntimeError(result.get("message", "OxaPay did not return a payment URL"))
         store.add_order({"id": order_id, "uid": uid, "pid": pid, "amount": float(p["price"]), "status": "pending", "track_id": data.get("track_id"), "created_at": iso_now()})
-        await show(update, f"💳 <b>Secure checkout</b>\n\nProduct: {esc(p.get('name'))}\nAmount: <b>{money(p.get('price', 0))}</b>\n\nPay using the secure OxaPay page. Your order is delivered after confirmation.", InlineKeyboardMarkup([[InlineKeyboardButton("🟢 Pay with OxaPay", url=data["payment_url"])], [button("📚 Purchase history", "history")], [button("🏠 Home", "home")]]))
+        payment_note = "Automatic confirmation is active; you do not need to send a screenshot or transaction ID."
+        await show(update, f"💳 <b>Secure checkout</b>\n\nProduct: {esc(p.get('name'))}\nAmount: <b>{money(p.get('price', 0))}</b>\n\nPay using the secure OxaPay page. {payment_note}", InlineKeyboardMarkup([[InlineKeyboardButton("🟢 Pay with OxaPay", url=data["payment_url"])], [button("📚 Purchase history", "history")], [button("🏠 Home", "home")]]))
     except Exception as exc:
         log.exception("OxaPay invoice error")
         await show(update, f"❌ Could not create checkout right now.\n\n<code>{esc(str(exc)[:180])}</code>", nav())
@@ -470,6 +473,37 @@ async def oxapay_webhook(request):
     if order and str(payload.get("status", "")).lower() == "paid":
         await fulfill_order(order, request.app["telegram_bot"])
     return web.Response(status=200, text="ok")
+
+
+def get_oxapay_payment_status(track_id: str) -> dict:
+    """Query OxaPay's official payment-information endpoint for webhook-free hosting."""
+    url = f"{OXAPAY_STATUS_URL}/{track_id}"
+    req = urllib.request.Request(url, method="GET", headers={
+        "Content-Type": "application/json",
+        "merchant_api_key": OXAPAY_API_KEY,
+    })
+    with urllib.request.urlopen(req, timeout=20) as response:
+        payload = json.loads(response.read().decode())
+    return payload.get("data", {}) or {}
+
+
+async def poll_pending_payments(context: ContextTypes.DEFAULT_TYPE):
+    """Fallback payment automation for bot hosts that cannot receive HTTPS callbacks."""
+    pending = [order for order in store.data.get("orders", {}).values()
+               if order.get("status") == "pending" and order.get("track_id")]
+    for order in pending[:50]:
+        try:
+            payment = await asyncio.to_thread(get_oxapay_payment_status, str(order["track_id"]))
+            status_value = str(payment.get("status", "")).lower()
+            if status_value in {"paid", "completed"}:
+                log.info("Polling confirmed OxaPay order %s", order.get("id"))
+                await fulfill_order(order, context.bot)
+            elif status_value in {"expired", "failed", "canceled", "cancelled"}:
+                order["status"] = status_value
+                store.data["orders"][order["id"]] = order
+                store.save()
+        except Exception as exc:
+            log.warning("OxaPay status check failed for order %s: %s", order.get("id"), exc)
 
 # ---------------- Admin ----------------
 def admin_only(fn):
@@ -613,7 +647,7 @@ async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def run_webhook_server(app: Application):
     if not web or not PUBLIC_WEBHOOK_URL:
-        log.warning("Webhook server disabled: install aiohttp and set PUBLIC_WEBHOOK_URL for live OxaPay callbacks")
+        log.info("No public webhook URL configured; OxaPay payment status polling will be used every %ss", PAYMENT_POLL_SECONDS)
         return None
     server = web.Application(); server["telegram_bot"] = app.bot; server.router.add_post("/oxapay/webhook", oxapay_webhook)
     runner = web.AppRunner(server); await runner.setup(); await web.TCPSite(runner, WEBHOOK_HOST, WEBHOOK_PORT).start(); log.info("OxaPay webhook listening on %s:%s", WEBHOOK_HOST, WEBHOOK_PORT); return runner
@@ -622,7 +656,10 @@ async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start)); app.add_handler(CommandHandler("shop", shop)); app.add_handler(CommandHandler("history", history)); app.add_handler(CommandHandler("profile", profile)); app.add_handler(CommandHandler("refer", referrals)); app.add_handler(CommandHandler("admin", admin))
     app.add_handler(CallbackQueryHandler(callback_router)); app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_router)); app.add_error_handler(error_handler)
-    await app.initialize(); await app.bot.set_my_commands([BotCommand("start", "Open the shop"), BotCommand("shop", "Browse products"), BotCommand("history", "Purchase history"), BotCommand("profile", "My profile"), BotCommand("refer", "Referral program")]); await app.start(); await run_webhook_server(app); await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    await app.initialize(); await app.bot.set_my_commands([BotCommand("start", "Open the shop"), BotCommand("shop", "Browse products"), BotCommand("history", "Purchase history"), BotCommand("profile", "My profile"), BotCommand("refer", "Referral program")]); await app.start()
+    if app.job_queue:
+        app.job_queue.run_repeating(poll_pending_payments, interval=PAYMENT_POLL_SECONDS, first=5, name="oxapay-payment-poller")
+    await run_webhook_server(app); await app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     log.info("Modern shop bot is running")
     try:
         await asyncio.Event().wait()
