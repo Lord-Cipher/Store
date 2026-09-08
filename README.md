@@ -25,7 +25,7 @@ python3 -m venv .venv
 pip install -r requirements.txt
 ```
 
-2. Copy `.env.example` to `.env` and set `BOT_TOKEN`, `ADMIN_IDS`, and `OXAPAY_MERCHANT_API_KEY`. The provided merchant key should be entered there locally, not committed to GitHub. Since it was shared in chat, rotate it in OxaPay if it has been exposed anywhere else.
+2. Set `BOT_TOKEN`, `ADMIN_IDS`, and `OXAPAY_MERCHANT_API_KEY`. On a bot-hosting panel, add them in the host's **Environment Variables**, **Secrets**, or **Config Variables** section. If the host does not provide that section, copy `.env.example` to `.env`; the bot loads that file automatically. Do not commit the real `.env` file. The provided merchant key should be entered there locally, not committed to GitHub. Since it was shared in chat, rotate it in OxaPay if it has been exposed anywhere else.
 
 3. Set `PUBLIC_WEBHOOK_URL` to a public HTTPS origin. OxaPay cannot call localhost. The application exposes `POST /oxapay/webhook`; proxy that path to `WEBHOOK_PORT` if using Nginx, Caddy, or a platform load balancer.
 
@@ -40,9 +40,10 @@ For multiple channels, separate entries with semicolons. The bot must be an admi
 5. Start the bot:
 
 ```bash
-set -a; . ./.env; set +a
 python3 botsellingbot.py
 ```
+
+The host must install `requirements.txt` before starting the bot. Environment variables supplied by the hosting panel take priority over values in a local `.env` file.
 
 ## Product management
 

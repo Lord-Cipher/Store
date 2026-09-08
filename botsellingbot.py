@@ -42,6 +42,12 @@ try:
 except ImportError:  # pragma: no cover
     web = None
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:  # pragma: no cover
+    pass
+
 logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger("modern-shop")
 
