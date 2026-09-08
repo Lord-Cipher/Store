@@ -16,7 +16,7 @@ for node in ast.walk(tree):
 
 exact = {
     'verify_join', 'support', 'shop', 'history', 'profile', 'referrals', 'about', 'admin',
-    'home', 'notifications', 'ref_copy', 'tickets', 'ticket:new', 'adm:products', 'adm:add', 'adm:stats', 'adm:coupons', 'adm:coupon_add', 'adm:tickets', 'adm:roles', 'adm:buttons',
+    'home', 'notifications', 'ref_copy', 'tickets', 'ticket:new', 'adm:products', 'adm:add', 'adm:stats', 'adm:coupons', 'adm:coupon_add', 'adm:tickets', 'adm:roles', 'adm:buttons', 'adm:force_join',
     'adm:settings', 'adm:ref_rate', 'adm:broadcast', 'adm:user_search', 'adm:backup',
     'adm:restore', 'adm:setting:purchases_enabled', 'adm:setting:referrals_enabled',
     'adm:setting:force_join_enabled',

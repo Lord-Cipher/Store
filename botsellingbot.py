@@ -795,7 +795,7 @@ def admin_only(fn):
             return
         permission_map = {
             "admin_products": "products", "admin_product_detail": "products", "admin_add": "products", "admin_edit": "products", "admin_delete": "products", "admin_delete_confirm": "products", "admin_toggle": "products", "admin_coupons": "products", "admin_coupon_add": "products", "admin_coupon_toggle": "products",
-            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
+            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_force_join": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
         }
         permission = permission_map.get(fn.__name__)
         if permission and not can_admin(update.effective_user.id, permission):
@@ -1028,10 +1028,19 @@ async def admin_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         [button(f"{status(s.get('purchases_enabled', True))} Purchases", "adm:setting:purchases_enabled")],
         [button(f"{status(s.get('referrals_enabled', True))} Referrals", "adm:setting:referrals_enabled")],
         [button(f"{status(force_enabled)} Force join", "adm:setting:force_join_enabled")],
+        [button("📢 Manage required channels", "adm:force_join")],
         [button("🟢 Change referral %", "adm:ref_rate")],
         [button("⬅️ Admin center", "admin")],
     ])
     await show(update, text, kb)
+
+
+@admin_only
+async def admin_force_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    channels = store.settings().get("force_join_channels", [])
+    current = "; ".join(f"{c.get('id')}|{c.get('title')}|{c.get('url')}" for c in channels) or "none"
+    ctx.user_data["admin_state"] = "force_join_config"
+    await show(update, f"📢 <b>Required channel manager</b>\n\nCurrent: <code>{esc(current)}</code>\n\nSend one or more channels separated by semicolons:\n<code>channel_id|button title|https://t.me/channel</code>\n\nSend <code>off</code> to disable and remove all required channels.", InlineKeyboardMarkup([[button("Cancel", "adm:settings")]]))
 
 @admin_only
 async def admin_setting_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1048,7 +1057,16 @@ async def admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     state = ctx.user_data.pop("admin_state", None); text = update.message.text.strip()
-    if state == "coupon_create":
+    if state == "force_join_config":
+        if text.lower() == "off":
+            store.update_settings({"force_join_enabled": False, "force_join_channels": []})
+            await update.message.reply_text("✅ Force join disabled and required channels cleared.", reply_markup=InlineKeyboardMarkup([[button("⚙️ Settings", "adm:settings")]])); return
+        channels = parse_force_join_channels(text)
+        if not channels:
+            await update.message.reply_text("Invalid format. Use channel_id|button title|https://t.me/channel;...", reply_markup=InlineKeyboardMarkup([[button("📢 Try again", "adm:force_join")]])); return
+        store.update_settings({"force_join_enabled": True, "force_join_channels": channels})
+        await update.message.reply_text(f"✅ Force join updated with {len(channels)} required channel(s).", reply_markup=InlineKeyboardMarkup([[button("⚙️ Settings", "adm:settings")]]))
+    elif state == "coupon_create":
         parts = [part.strip() for part in text.split("|", 5)]
         if len(parts) != 6 or parts[1] not in {"percent", "fixed"}:
             await update.message.reply_text("Use: CODE | percent/fixed | value | max_uses | expires_at | min_amount"); return
@@ -1174,7 +1192,7 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data != "support" and not is_admin(update.effective_user.id):
         if not await require_membership(update, ctx):
             return
-    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:coupons": admin_coupons, "adm:coupon_add": admin_coupon_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
+    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:coupons": admin_coupons, "adm:coupon_add": admin_coupon_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:force_join": admin_force_join, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
     if data in routes: await routes[data](update, ctx); return
     if data.startswith("category:"): await category(update, ctx)
     if data.startswith("product:"): await product(update, ctx)
