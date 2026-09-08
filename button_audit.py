@@ -25,7 +25,6 @@ prefixes = ('category:', 'product:', 'buy:', 'order:', 'download:', 'adm:product
 unhandled = sorted(c for c in callbacks if c not in exact and not c.startswith(prefixes))
 assert not unhandled, f'Unhandled static callback values: {unhandled}'
 
-reply_labels = {'🛒 Browse shop', '📚 Purchase history', '👤 My profile', '🎁 Refer & earn', '🆘 Support', 'ℹ️ About', '⚙️ Admin panel'}
-for label in reply_labels:
-    assert label in source, f'Missing reply-keyboard label in source: {label}'
-print(f'button audit passed: {len(callbacks)} static callback values checked')
+assert 'ReplyKeyboardMarkup' not in source, 'Persistent reply keyboard found; UI must be inline-only'
+assert 'reply_keyboard' not in source, 'Persistent reply keyboard helper found; UI must be inline-only'
+print(f'button audit passed: {len(callbacks)} static callback values checked; inline-only UI enforced')

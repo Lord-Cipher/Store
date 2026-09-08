@@ -31,7 +31,7 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Optional
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler, ContextTypes,
@@ -306,12 +306,6 @@ def home_keyboard(uid: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(rows)
 
 
-def reply_keyboard(uid: int) -> ReplyKeyboardMarkup:
-    rows = [["🛒 Browse shop", "📚 Purchase history"], ["👤 My profile", "🎁 Refer & earn"], ["🆘 Support", "ℹ️ About"]]
-    if is_admin(uid): rows.append(["⚙️ Admin panel"])
-    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
-
-
 def home_text() -> str:
     s = store.settings()
     return (f"✨ <b>{esc(s['shop_name'])}</b>\n\n"
@@ -341,8 +335,7 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     if not await require_membership(update, ctx):
         return
-    await update.message.reply_text(home_text(), parse_mode=ParseMode.HTML, reply_markup=reply_keyboard(update.effective_user.id))
-    await update.message.reply_text("Choose an option to continue:", reply_markup=home_keyboard(update.effective_user.id))
+    await update.message.reply_text(home_text(), parse_mode=ParseMode.HTML, reply_markup=home_keyboard(update.effective_user.id))
 
 async def home(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ensure_user(update)
@@ -676,7 +669,7 @@ async def admin_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         store.data = restored
         store.data.setdefault("categories", {})
         store.save(); ctx.user_data.pop("admin_state", None)
-        await update.message.reply_text("✅ Database restored successfully.", reply_markup=reply_keyboard(update.effective_user.id))
+        await update.message.reply_text("✅ Database restored successfully.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("🏠 Home", "home")]]))
     except Exception as exc:
         await update.message.reply_text(f"❌ Restore rejected: {esc(str(exc))}", parse_mode=ParseMode.HTML)
 
@@ -820,7 +813,7 @@ async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
         if category_id != "general":
             store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
-        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required, "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=reply_keyboard(update.effective_user.id))
+        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required, "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
     elif isinstance(state, str) and state.startswith("edit_product:"):
         pid = state.split(":", 1)[1]
         if pid not in store.data["products"]:
@@ -835,7 +828,7 @@ async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
         if category_id != "general":
             store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
-        store.data["products"][pid].update({"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required}); store.save(); await update.message.reply_text("✅ Product updated.", reply_markup=reply_keyboard(update.effective_user.id))
+        store.data["products"][pid].update({"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required}); store.save(); await update.message.reply_text("✅ Product updated.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
     elif state == "broadcast":
         sent = 0
         for uid, u in store.data.get("users", {}).items():

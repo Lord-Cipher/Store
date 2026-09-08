@@ -5,6 +5,7 @@ This version replaces the legacy mixed-language experience with an English-first
 ## Included
 
 - Consistent inline UI using blue navigation buttons, green action buttons, and red control/status buttons.
+- Inline-only interface: no persistent keyboard buttons appear below the chat input.
 - Product catalog with price, stock, description, active/inactive state, and delivery content.
 - Purchase history stored by user.
 - OxaPay invoice creation with `merchant_api_key` and `order_id`.
