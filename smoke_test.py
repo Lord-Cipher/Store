@@ -25,4 +25,9 @@ with tempfile.TemporaryDirectory() as td:
     assert channels[0]['url'] == 'https://t.me/demo'
     assert bot.PAYMENT_POLL_SECONDS >= 30
     assert bot.OXAPAY_STATUS_URL.endswith('/payment')
+    bot.store.data['categories']['automation'] = {'name': 'Automation'}
+    bot.store.data['products']['p1']['category_id'] = 'automation'
+    purchase_id = bot.store.add_purchase({'uid': 1001, 'product_name': 'Demo', 'price': 10, 'delivery': 'demo-key', 'status': 'paid'})
+    assert purchase_id in bot.store.data['purchases']
+    assert bot.store.data['products']['p1']['category_id'] == 'automation'
     print('smoke tests passed')

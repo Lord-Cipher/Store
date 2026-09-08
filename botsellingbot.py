@@ -17,6 +17,7 @@ import copy
 import hashlib
 import hmac
 import html
+import io
 import json
 import logging
 import os
@@ -115,6 +116,7 @@ class Store:
             self.data.setdefault("settings", copy.deepcopy(DEFAULT_SETTINGS))
             self.data.setdefault("users", {})
             self.data.setdefault("products", {})
+            self.data.setdefault("categories", {})
             self.data.setdefault("orders", {})
             self.data.setdefault("purchases", {})
             self.data.setdefault("admins", {str(uid): {"role": "owner"} for uid in ADMIN_IDS})
@@ -349,9 +351,34 @@ async def shop(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     active = [(pid, p) for pid, p in products.items() if p.get("active", True)]
     if not active:
         await show(update, "🛒 <b>Shop</b>\n\nNo products are available yet.", nav()); return
-    rows = [[button(f"🔵 {p.get('name','Product')} · {money(p.get('price', 0))}", f"product:{pid}")] for pid, p in active]
+    category_map = store.data.get("categories", {})
+    grouped = {}
+    for pid, p in active:
+        grouped.setdefault(p.get("category_id") or "general", []).append((pid, p))
+    use_categories = len(grouped) > 1 or bool(category_map)
+    if use_categories:
+        rows = []
+        for cid, items in grouped.items():
+            name = category_map.get(cid, {}).get("name", "General")
+            rows.append([button(f"🔵 {name} ({len(items)})", f"category:{cid}")])
+    else:
+        rows = [[button(f"🔵 {p.get('name','Product')} · {money(p.get('price', 0))}", f"product:{pid}")] for pid, p in active]
     rows.append([button("🏠 Home", "home")])
-    await show(update, "🛒 <b>Browse shop</b>\n\nSelect a product:", InlineKeyboardMarkup(rows))
+    prompt = "Select a category:" if use_categories else "Select a product:"
+    await show(update, f"🛒 <b>Browse shop</b>\n\n{prompt}", InlineKeyboardMarkup(rows))
+
+
+async def category(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    cid = update.callback_query.data.split(":", 1)[1]
+    category_map = store.data.get("categories", {})
+    products = [(pid, p) for pid, p in store.data.get("products", {}).items()
+                if p.get("active", True) and (p.get("category_id") or "general") == cid]
+    name = category_map.get(cid, {}).get("name", "General")
+    if not products:
+        await show(update, f"📂 <b>{esc(name)}</b>\n\nNo products are available in this category.", InlineKeyboardMarkup([[button("⬅️ Back to shop", "shop")]])); return
+    rows = [[button(f"🔵 {p.get('name','Product')} · {money(p.get('price', 0))}", f"product:{pid}")] for pid, p in products]
+    rows.append([button("⬅️ Back to shop", "shop")])
+    await show(update, f"📂 <b>{esc(name)}</b>\n\nSelect a product:", InlineKeyboardMarkup(rows))
 
 async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pid = update.callback_query.data.split(":", 1)[1]
@@ -371,13 +398,54 @@ async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def history(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     items = [p for p in store.data.get("purchases", {}).values() if p.get("uid") == uid]
+    orders = [o for o in store.data.get("orders", {}).values() if o.get("uid") == uid and o.get("status") == "pending"]
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-    if not items:
+    if not items and not orders:
         await show(update, "📚 <b>Purchase history</b>\n\nYou have not purchased anything yet.", InlineKeyboardMarkup([[button("🛒 Browse shop", "shop")], [button("🏠 Home", "home")]])); return
     lines = ["📚 <b>Purchase history</b>", ""]
+    rows = []
+    for order in orders[:10]:
+        lines.append(f"⏳ Pending · {money(order.get('amount', 0))} · {esc(order.get('id'))}")
+        rows.append([button("🔵 Check payment status", f"order:{order.get('id')}")])
     for p in items[:20]:
         lines.append(f"• {esc(p.get('product_name'))} — {money(p.get('price', 0))} — {esc(p.get('status', 'paid'))}")
-    await show(update, "\n".join(lines), nav())
+        rows.append([button(f"🟢 Re-download {p.get('product_name')}", f"download:{p.get('id')}")])
+    rows.append([button("🏠 Home", "home")])
+    await show(update, "\n".join(lines), InlineKeyboardMarkup(rows))
+
+
+async def order_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    oid = update.callback_query.data.split(":", 1)[1]
+    order = store.data.get("orders", {}).get(oid)
+    if not order or int(order.get("uid", 0)) != update.effective_user.id:
+        await update.callback_query.answer("Order not found.", show_alert=True); return
+    if order.get("status") == "pending" and order.get("track_id"):
+        try:
+            payment = await asyncio.to_thread(get_oxapay_payment_status, str(order["track_id"]))
+            remote_status = str(payment.get("status", "pending")).lower()
+            if remote_status in {"paid", "completed"}:
+                await fulfill_order(order, ctx.bot)
+            elif remote_status in {"expired", "failed", "cancelled", "canceled"}:
+                order["status"] = remote_status; store.data["orders"][oid] = order; store.save()
+        except Exception as exc:
+            log.warning("Manual order status check failed: %s", exc)
+    current = store.data.get("orders", {}).get(oid, {}).get("status", "pending")
+    await show(update, f"🧾 <b>Order status</b>\n\nOrder: <code>{esc(oid)}</code>\nStatus: <b>{esc(current.title())}</b>", InlineKeyboardMarkup([[button("📚 Purchase history", "history")], [button("🏠 Home", "home")]]))
+
+
+async def download_purchase(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    purchase_id = update.callback_query.data.split(":", 1)[1]
+    purchase = store.data.get("purchases", {}).get(purchase_id)
+    if not purchase or int(purchase.get("uid", 0)) != update.effective_user.id:
+        await update.callback_query.answer("Purchase not found.", show_alert=True); return
+    delivery = purchase.get("delivery", "")
+    await update.callback_query.answer("Preparing your delivery...")
+    if delivery.startswith("file:"):
+        await ctx.bot.send_document(update.effective_user.id, delivery[5:].strip(), caption=f"📦 {purchase.get('product_name')} — re-download")
+    elif delivery:
+        await ctx.bot.send_message(update.effective_user.id, f"📦 <b>{esc(purchase.get('product_name'))}</b>\n\n<code>{esc(delivery)}</code>", parse_mode=ParseMode.HTML)
+    else:
+        await ctx.bot.send_message(update.effective_user.id, "⚠️ This purchase has no delivery content. Please contact support.")
 
 async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     u = store.user(update.effective_user.id)
@@ -522,21 +590,114 @@ async def admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pending = sum(1 for o in orders if o.get("status") == "pending")
     text = (f"🔴 <b>Admin control center</b>\n\n👥 Users: {users}\n🧾 Orders: {len(orders)}\n⏳ Pending payments: {pending}\n\n"
             f"Purchases: {status(s.get('purchases_enabled', True))} · Referrals: {status(s.get('referrals_enabled', True))}")
-    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("🎛️ Button manager", "adm:buttons"), button("⚙️ Settings", "adm:settings")], [button("📢 Broadcast", "adm:broadcast")], [button("🏠 User home", "home")]])
+    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("👥 User search", "adm:user_search"), button("🎛️ Button manager", "adm:buttons")], [button("⚙️ Settings", "adm:settings"), button("📢 Broadcast", "adm:broadcast")], [button("💾 Backup", "adm:backup"), button("♻️ Restore", "adm:restore")], [button("🏠 User home", "home")]])
     await show(update, text, kb)
+
+
+@admin_only
+async def admin_user_search(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["admin_state"] = "user_search"
+    await show(update, "👥 <b>User search</b>\n\nSend a Telegram user ID or username.", InlineKeyboardMarkup([[button("Cancel", "admin")]]))
+
+
+@admin_only
+async def admin_user_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE, uid: int):
+    user = store.data.get("users", {}).get(str(uid))
+    if not user:
+        await update.message.reply_text("No matching user found."); return
+    purchases = [p for p in store.data.get("purchases", {}).values() if int(p.get("uid", 0)) == uid]
+    await update.message.reply_text(
+        f"👤 <b>User profile</b>\n\nID: <code>{uid}</code>\nName: {esc(user.get('name','Unknown'))}\nUsername: @{esc(user.get('username',''))}\nBalance: <b>{money(user.get('balance', 0))}</b>\nReferrals: {user.get('referrals', 0)}\nPurchases: {len(purchases)}",
+        parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("⬅️ Admin center", "admin")]]))
+
+
+@admin_only
+async def admin_backup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    payload = json.dumps(store.data, ensure_ascii=False, indent=2).encode("utf-8")
+    await update.callback_query.answer("Preparing backup...")
+    await ctx.bot.send_document(update.effective_user.id, io.BytesIO(payload), filename=f"bot-backup-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.json", caption="💾 Database backup")
+
+
+@admin_only
+async def admin_restore(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["admin_state"] = "restore"
+    await show(update, "♻️ <b>Restore database</b>\n\nSend a JSON backup file exported by this bot. The current database will be replaced after validation.", InlineKeyboardMarkup([[button("Cancel", "admin")]]))
+
+
+@admin_only
+async def admin_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if ctx.user_data.get("admin_state") != "restore":
+        return
+    document = update.message.document
+    file = await document.get_file()
+    raw = bytes(await file.download_as_bytearray())
+    try:
+        restored = json.loads(raw.decode("utf-8"))
+        required = {"settings", "users", "products", "orders", "purchases"}
+        if not isinstance(restored, dict) or not required.issubset(restored):
+            raise ValueError("missing required database sections")
+        store.data = restored
+        store.data.setdefault("categories", {})
+        store.save(); ctx.user_data.pop("admin_state", None)
+        await update.message.reply_text("✅ Database restored successfully.", reply_markup=reply_keyboard(update.effective_user.id))
+    except Exception as exc:
+        await update.message.reply_text(f"❌ Restore rejected: {esc(str(exc))}", parse_mode=ParseMode.HTML)
 
 @admin_only
 async def admin_products(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     products = store.data.get("products", {}); rows = []
-    for pid, p in products.items(): rows.append([button(f"{'🟢' if p.get('active', True) else '🔴'} {p.get('name')} · {money(p.get('price', 0))}", f"adm:toggle:{pid}")])
+    for pid, p in products.items(): rows.append([button(f"{'🟢' if p.get('active', True) else '🔴'} {p.get('name')} · {money(p.get('price', 0))}", f"adm:product:{pid}")])
     rows.append([button("🟢 Add product", "adm:add")])
     rows.append([button("⬅️ Admin center", "admin")])
-    await show(update, "📦 <b>Product management</b>\n\nTap a product to toggle availability. Add products from the guided input flow.", InlineKeyboardMarkup(rows))
+    await show(update, "📦 <b>Product management</b>\n\nTap a product to edit, delete, or toggle availability.", InlineKeyboardMarkup(rows))
+
+
+@admin_only
+async def admin_product_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 2)[2]
+    p = store.data.get("products", {}).get(pid)
+    if not p:
+        await show(update, "❌ Product not found.", InlineKeyboardMarkup([[button("⬅️ Products", "adm:products")]])); return
+    category_name = store.data.get("categories", {}).get(p.get("category_id", ""), {}).get("name", "General")
+    text = (f"📦 <b>{esc(p.get('name'))}</b>\n\nPrice: <b>{money(p.get('price', 0))}</b>\n"
+            f"Stock: <b>{p.get('stock', 0)}</b>\nCategory: <b>{esc(category_name)}</b>\n"
+            f"Availability: {status(p.get('active', True))}")
+    kb = InlineKeyboardMarkup([
+        [button("🟢 Edit product", f"adm:edit:{pid}"), button("🔴 Delete", f"adm:delete:{pid}")],
+        [button(f"{status(p.get('active', True))} Toggle availability", f"adm:toggle:{pid}")],
+        [button("⬅️ Products", "adm:products")],
+    ])
+    await show(update, text, kb)
 
 @admin_only
 async def admin_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["admin_state"] = "add_product"
-    await show(update, "🟢 <b>Add product</b>\n\nSend one line in this format:\n<code>Name | price | stock | description | delivery</code>\n\nUse stock <code>-1</code> for unlimited stock. Delivery can be text or <code>file:TELEGRAM_FILE_ID</code>.", InlineKeyboardMarkup([[button("Cancel", "adm:products")]]))
+    await show(update, "🟢 <b>Add product</b>\n\nSend one line in this format:\n<code>Name | price | stock | description | delivery | category</code>\n\nUse stock <code>-1</code> for unlimited stock. Delivery can be text or <code>file:TELEGRAM_FILE_ID</code>. Category is optional.", InlineKeyboardMarkup([[button("Cancel", "adm:products")]]))
+
+
+@admin_only
+async def admin_edit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 2)[2]
+    p = store.data.get("products", {}).get(pid)
+    if not p:
+        await show(update, "❌ Product not found.", InlineKeyboardMarkup([[button("⬅️ Products", "adm:products")]])); return
+    ctx.user_data["admin_state"] = f"edit_product:{pid}"
+    current = f"{p.get('name','')} | {p.get('price',0)} | {p.get('stock',0)} | {p.get('description','')} | {p.get('delivery','')} | {p.get('category_id','')}"
+    await show(update, f"🟢 <b>Edit product</b>\n\nSend the updated line:\n<code>{esc(current)}</code>\n\nUse: Name | price | stock | description | delivery | category", InlineKeyboardMarkup([[button("Cancel", f"adm:product:{pid}")]]))
+
+
+@admin_only
+async def admin_delete(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 2)[2]
+    p = store.data.get("products", {}).get(pid, {})
+    await show(update, f"⚠️ <b>Delete {esc(p.get('name', 'this product'))}?</b>\n\nThis removes it from the shop. Existing purchase history is preserved.", InlineKeyboardMarkup([[button("🔴 Confirm delete", f"adm:delete_confirm:{pid}")], [button("⬅️ Cancel", f"adm:product:{pid}")]]))
+
+
+@admin_only
+async def admin_delete_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 2)[2]
+    store.data.get("products", {}).pop(pid, None); store.save()
+    await admin_products(update, ctx)
 
 @admin_only
 async def admin_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -596,17 +757,43 @@ async def admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     state = ctx.user_data.pop("admin_state", None); text = update.message.text.strip()
-    if state == "ref_rate":
+    if state == "user_search":
+        query = text.lstrip("@").lower()
+        matches = []
+        for uid, user in store.data.get("users", {}).items():
+            if query == uid or query in str(user.get("username", "")).lower() or query in str(user.get("name", "")).lower():
+                matches.append(int(uid))
+        if not matches:
+            await update.message.reply_text("No matching user found."); return
+        for uid in matches[:10]:
+            await admin_user_detail(update, ctx, uid)
+    elif state == "ref_rate":
         try: store.update_settings({"referral_rate": max(0, min(100, float(text)))})
         except ValueError: await update.message.reply_text("Please send a valid number."); return
         await update.message.reply_text("✅ Referral percentage updated.")
     elif state == "add_product":
-        parts = [x.strip() for x in text.split("|", 4)]
-        if len(parts) != 5:
-            await update.message.reply_text("Use exactly: Name | price | stock | description | delivery"); return
+        parts = [x.strip() for x in text.split("|", 5)]
+        if len(parts) != 6:
+            parts.append("")
         try: price, stock = float(parts[1]), int(parts[2])
         except ValueError: await update.message.reply_text("Price and stock must be numeric."); return
-        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=reply_keyboard(update.effective_user.id))
+        category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
+        if category_id != "general":
+            store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
+        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=reply_keyboard(update.effective_user.id))
+    elif isinstance(state, str) and state.startswith("edit_product:"):
+        pid = state.split(":", 1)[1]
+        if pid not in store.data["products"]:
+            await update.message.reply_text("Product no longer exists."); return
+        parts = [x.strip() for x in text.split("|", 5)]
+        if len(parts) != 6:
+            await update.message.reply_text("Use: Name | price | stock | description | delivery | category"); return
+        try: price, stock = float(parts[1]), int(parts[2])
+        except ValueError: await update.message.reply_text("Price and stock must be numeric."); return
+        category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
+        if category_id != "general":
+            store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
+        store.data["products"][pid].update({"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id}); store.save(); await update.message.reply_text("✅ Product updated.", reply_markup=reply_keyboard(update.effective_user.id))
     elif state == "broadcast":
         sent = 0
         for uid, u in store.data.get("users", {}).items():
@@ -626,6 +813,11 @@ async def text_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         await fn(update, ctx)
 
+
+async def document_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if is_admin(update.effective_user.id) and ctx.user_data.get("admin_state") == "restore":
+        await admin_document(update, ctx)
+
 async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data
     if data == "verify_join":
@@ -634,10 +826,17 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data != "support" and not is_admin(update.effective_user.id):
         if not await require_membership(update, ctx):
             return
-    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "referrals": referrals, "ref_copy": ref_copy, "support": support, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast}
+    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "referrals": referrals, "ref_copy": ref_copy, "support": support, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
     if data in routes: await routes[data](update, ctx); return
+    if data.startswith("category:"): await category(update, ctx)
     if data.startswith("product:"): await product(update, ctx)
     elif data.startswith("buy:"): await buy(update, ctx)
+    elif data.startswith("order:"): await order_status(update, ctx)
+    elif data.startswith("download:"): await download_purchase(update, ctx)
+    elif data.startswith("adm:product:"): await admin_product_detail(update, ctx)
+    elif data.startswith("adm:edit:"): await admin_edit(update, ctx)
+    elif data.startswith("adm:delete_confirm:"): await admin_delete_confirm(update, ctx)
+    elif data.startswith("adm:delete:"): await admin_delete(update, ctx)
     elif data.startswith("adm:toggle:"): await admin_toggle(update, ctx)
     elif data.startswith("adm:button:"): await admin_button_toggle(update, ctx)
     elif data.startswith("adm:setting:"): await admin_setting_toggle(update, ctx)
@@ -655,7 +854,7 @@ async def run_webhook_server(app: Application):
 async def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start)); app.add_handler(CommandHandler("shop", shop)); app.add_handler(CommandHandler("history", history)); app.add_handler(CommandHandler("profile", profile)); app.add_handler(CommandHandler("refer", referrals)); app.add_handler(CommandHandler("admin", admin))
-    app.add_handler(CallbackQueryHandler(callback_router)); app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_router)); app.add_error_handler(error_handler)
+    app.add_handler(CallbackQueryHandler(callback_router)); app.add_handler(MessageHandler(filters.Document.ALL, document_router)); app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_router)); app.add_error_handler(error_handler)
     await app.initialize(); await app.bot.set_my_commands([BotCommand("start", "Open the shop"), BotCommand("shop", "Browse products"), BotCommand("history", "Purchase history"), BotCommand("profile", "My profile"), BotCommand("refer", "Referral program")]); await app.start()
     if app.job_queue:
         app.job_queue.run_repeating(poll_pending_payments, interval=PAYMENT_POLL_SECONDS, first=5, name="oxapay-payment-poller")

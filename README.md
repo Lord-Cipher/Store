@@ -13,6 +13,12 @@ This version replaces the legacy mixed-language experience with an English-first
 - Fulfillment only after OxaPay reports `Paid`.
 - Configurable referral percentage and automatic referral balance rewards.
 - Optional force-join gate with blue channel buttons and a green **Verify membership** button.
+- Product categories with category-based browsing.
+- Admin product editing, deletion confirmation, availability toggles, and category assignment.
+- User order tracking with manual OxaPay status checks.
+- Purchase re-download buttons for delivered products.
+- Admin user search by ID, username, or name.
+- JSON database backup download and validated restore upload.
 - Admin control center with product toggles, analytics, button manager, settings, and broadcast.
 - Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
 
@@ -51,10 +57,12 @@ The host must install `requirements.txt` before starting the bot. Environment va
 From the admin panel, choose **Products**, then **Add product** and send:
 
 ```text
-Name | price | stock | description | delivery
+Name | price | stock | description | delivery | category
 ```
 
-Use stock `-1` for unlimited stock. Delivery may be plain text or `file:TELEGRAM_FILE_ID`.
+Use stock `-1` for unlimited stock. Delivery may be plain text or `file:TELEGRAM_FILE_ID`. Categories are created automatically when a new category name is entered. Existing five-field product lines remain supported.
+
+From **Purchase history**, users can check pending OxaPay payments and re-download previously delivered purchases. From the admin panel, **User search** accepts an ID, username, or name; **Backup** sends the current JSON database and **Restore** accepts a validated JSON backup file.
 
 ## Payment safety
 
