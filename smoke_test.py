@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory() as td:
     assert bot.stock_label(0) == '🔴 Out of stock'
     assert bot.stock_label(-1) == '🟢 Unlimited'
     assert bot.referral_requirement({'referrals_required': 3}) == 3
+    assert bot.effective_price({'price': 10, 'sale_price': 4, 'sale_ends_at': '2999-01-01T00:00:00+00:00'}) == 4
     bot.store.data['coupons']['WELCOME10'] = {'code': 'WELCOME10', 'type': 'percent', 'value': 10, 'max_uses': 10, 'uses': 0, 'used_by': [], 'active': True, 'min_amount': 0}
     coupon, error = bot.active_coupon('welcome10', 1001, 10)
     assert coupon and not error and bot.coupon_discount(coupon, 10) == 1

@@ -24,6 +24,7 @@ This version replaces the legacy mixed-language experience with an English-first
 - JSON database backup download and validated restore upload.
 - Automated callback-button audit covering static buttons, dynamic prefixes, and the inline-only interface.
 - Coupon codes with percentage or fixed discounts, limits, expiry dates, minimum totals, and free-checkout support.
+- Automatic product flash sales with sale prices and UTC expiry timestamps.
 - Temporary stock reservations that expire automatically when payment is not completed.
 - Multi-file delivery using `file:TELEGRAM_FILE_ID||file:ANOTHER_FILE_ID`.
 - Support tickets with user inboxes, admin replies, close actions, and notifications.
@@ -67,10 +68,10 @@ The host must install `requirements.txt` before starting the bot. Environment va
 From the admin panel, choose **Products**, then **Add product** and send:
 
 ```text
-Name | price | stock | description | delivery | category
+Name | price | stock | description | delivery | category | referrals_required | sale_price | sale_ends_at
 ```
 
-Use stock `-1` for unlimited stock. Delivery may be plain text, one file such as `file:TELEGRAM_FILE_ID`, or multiple files separated with `||`. Categories are created automatically when a new category name is entered. Set `referrals_required` to `0` for a normal product, or for example `3` to require three referrals before purchase. Existing five-field product lines remain supported.
+Use stock `-1` for unlimited stock. Delivery may be plain text, one file such as `file:TELEGRAM_FILE_ID`, or multiple files separated with `||`. Categories are created automatically when a new category name is entered. Set `referrals_required` to `0` for a normal product, or for example `3` to require three referrals before purchase. `sale_price` and `sale_ends_at` can be used for an automatic flash sale. Existing five-field product lines remain supported.
 
 To create a coupon, open **Admin control center → Coupons → Create coupon** and send:
 

@@ -244,6 +244,17 @@ def coupon_discount(coupon: dict, amount: float) -> float:
     return min(amount, round(amount * max(0.0, float(coupon.get("value", 0))) / 100, 2))
 
 
+def effective_price(product: dict) -> float:
+    sale_price = product.get("sale_price")
+    sale_ends_at = str(product.get("sale_ends_at", ""))
+    if sale_price not in (None, "") and (not sale_ends_at or sale_ends_at > iso_now()):
+        try:
+            return max(0.0, float(sale_price))
+        except (TypeError, ValueError):
+            pass
+    return float(product.get("price", 0))
+
+
 def active_coupon(code: str, uid: int, amount: float) -> tuple[dict | None, str]:
     code = code.strip().upper()
     coupon = store.data.get("coupons", {}).get(code)
@@ -457,7 +468,7 @@ async def shop(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             name = category_map.get(cid, {}).get("name", "General")
             rows.append([button(f"🔵 {name} ({len(items)})", f"category:{cid}")])
     else:
-        rows = [[button(f"🔵 {p.get('name','Product')} · {money(p.get('price', 0))} · {stock_label(p.get('stock', 0))}", f"product:{pid}")] for pid, p in active]
+        rows = [[button(f"🔵 {p.get('name','Product')} · {money(effective_price(p))} · {stock_label(p.get('stock', 0))}", f"product:{pid}")] for pid, p in active]
     rows.append([button("🏠 Home", "home")])
     prompt = "Select a category:" if use_categories else "Select a product:"
     await show(update, f"🛒 <b>Browse shop</b>\n\n{prompt}", InlineKeyboardMarkup(rows))
@@ -471,7 +482,7 @@ async def category(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     name = category_map.get(cid, {}).get("name", "General")
     if not products:
         await show(update, f"📂 <b>{esc(name)}</b>\n\nNo products are available in this category.", InlineKeyboardMarkup([[button("⬅️ Back to shop", "shop")]])); return
-    rows = [[button(f"🔵 {p.get('name','Product')} · {money(p.get('price', 0))} · {stock_label(p.get('stock', 0))}", f"product:{pid}")] for pid, p in products]
+    rows = [[button(f"🔵 {p.get('name','Product')} · {money(effective_price(p))} · {stock_label(p.get('stock', 0))}", f"product:{pid}")] for pid, p in products]
     rows.append([button("⬅️ Back to shop", "shop")])
     await show(update, f"📂 <b>{esc(name)}</b>\n\nSelect a product:", InlineKeyboardMarkup(rows))
 
@@ -484,7 +495,9 @@ async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     required_referrals = referral_requirement(p)
     stock_text = stock_label(stock)
     text = (f"📦 <b>{esc(p.get('name'))}</b>\n\n{esc(p.get('description', ''))}\n\n"
-            f"💳 Price: <b>{money(p.get('price', 0))}</b>\n📊 Stock: {stock_text}")
+            f"💳 Price: <b>{money(effective_price(p))}</b>\n📊 Stock: {stock_text}")
+    if p.get("sale_price") not in (None, "") and (not p.get("sale_ends_at") or p.get("sale_ends_at") > iso_now()):
+        text += f"\n⚡ Flash sale ends: <b>{esc(p.get('sale_ends_at', ''))}</b>"
     if required_referrals:
         text += f"\n🎁 Referral unlock: <b>{required_referrals} referrals required</b>"
     rows = []
@@ -621,7 +634,7 @@ async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: st
     if not OXAPAY_API_KEY:
         await show(update, "⚠️ Payments are not configured yet. Ask an administrator to set OXAPAY_MERCHANT_API_KEY.", nav()); return
     p = store.data["products"].get(pid); uid = update.effective_user.id
-    original_price = float(p["price"])
+    original_price = effective_price(p)
     discount = coupon_discount(coupon, original_price) if coupon else 0.0
     final_price = round(original_price - discount, 2)
     reservation_id = reserve_stock(pid, uid)
@@ -704,7 +717,7 @@ async def fulfill_order(order: dict, bot):
     s = store.settings(); u = store.user(uid)
     ref = u.get("referrer_id")
     if s.get("referrals_enabled", True) and ref:
-        reward = round(float(p.get("price", 0)) * float(s.get("referral_rate", 5)) / 100, 2)
+        reward = round(float(order.get("amount", 0)) * float(s.get("referral_rate", 5)) / 100, 2)
         ru = store.user(int(ref)); store.update_user(int(ref), {"balance": round(float(ru.get("balance", 0)) + reward, 2), "referral_earnings": round(float(ru.get("referral_earnings", 0)) + reward, 2)})
         try: await bot.send_message(int(ref), f"🎁 Referral reward: <b>{money(reward)}</b> was added to your balance.", parse_mode=ParseMode.HTML)
         except Exception: pass
@@ -914,7 +927,8 @@ async def admin_product_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not p:
         await show(update, "❌ Product not found.", InlineKeyboardMarkup([[button("⬅️ Products", "adm:products")]])); return
     category_name = store.data.get("categories", {}).get(p.get("category_id", ""), {}).get("name", "General")
-    text = (f"📦 <b>{esc(p.get('name'))}</b>\n\nPrice: <b>{money(p.get('price', 0))}</b>\n"
+    sale_text = f"\nFlash sale: <b>{money(p.get('sale_price'))}</b> until {esc(p.get('sale_ends_at'))}" if p.get('sale_price') not in (None, "") else ""
+    text = (f"📦 <b>{esc(p.get('name'))}</b>\n\nPrice: <b>{money(effective_price(p))}</b>{sale_text}\n"
             f"Stock: <b>{stock_label(p.get('stock', 0))}</b>\nCategory: <b>{esc(category_name)}</b>\n"
             f"Referral unlock: <b>{referral_requirement(p)} referrals</b>\n"
             f"Availability: {status(p.get('active', True))}")
@@ -928,7 +942,7 @@ async def admin_product_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["admin_state"] = "add_product"
-    await show(update, "🟢 <b>Add product</b>\n\nSend one line in this format:\n<code>Name | price | stock | description | delivery | category | referrals_required</code>\n\nUse stock <code>-1</code> for unlimited stock. Delivery can be text or <code>file:TELEGRAM_FILE_ID</code>. Set referrals_required to 0 for no unlock requirement.", InlineKeyboardMarkup([[button("Cancel", "adm:products")]]))
+    await show(update, "🟢 <b>Add product</b>\n\nSend one line in this format:\n<code>Name | price | stock | description | delivery | category | referrals_required | sale_price | sale_ends_at</code>\n\nSale fields are optional. Use an ISO UTC time such as <code>2026-12-31T23:59:59+00:00</code>. Use stock <code>-1</code> for unlimited stock.", InlineKeyboardMarkup([[button("Cancel", "adm:products")]]))
 
 
 @admin_only
@@ -938,8 +952,8 @@ async def admin_edit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not p:
         await show(update, "❌ Product not found.", InlineKeyboardMarkup([[button("⬅️ Products", "adm:products")]])); return
     ctx.user_data["admin_state"] = f"edit_product:{pid}"
-    current = f"{p.get('name','')} | {p.get('price',0)} | {p.get('stock',0)} | {p.get('description','')} | {p.get('delivery','')} | {p.get('category_id','')} | {p.get('referrals_required',0)}"
-    await show(update, f"🟢 <b>Edit product</b>\n\nSend the updated line:\n<code>{esc(current)}</code>\n\nUse: Name | price | stock | description | delivery | category | referrals_required", InlineKeyboardMarkup([[button("Cancel", f"adm:product:{pid}")]]))
+    current = f"{p.get('name','')} | {p.get('price',0)} | {p.get('stock',0)} | {p.get('description','')} | {p.get('delivery','')} | {p.get('category_id','')} | {p.get('referrals_required',0)} | {p.get('sale_price','')} | {p.get('sale_ends_at','')}"
+    await show(update, f"🟢 <b>Edit product</b>\n\nSend the updated line:\n<code>{esc(current)}</code>\n\nUse: Name | price | stock | description | delivery | category | referrals_required | sale_price | sale_ends_at", InlineKeyboardMarkup([[button("Cancel", f"adm:product:{pid}")]]))
 
 
 @admin_only
@@ -1078,32 +1092,36 @@ async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except ValueError: await update.message.reply_text("Please send a valid number."); return
         await update.message.reply_text("✅ Referral percentage updated.")
     elif state == "add_product":
-        parts = [x.strip() for x in text.split("|", 6)]
-        while len(parts) < 7:
+        parts = [x.strip() for x in text.split("|", 8)]
+        while len(parts) < 9:
             parts.append("")
         try: price, stock = float(parts[1]), int(parts[2])
         except ValueError: await update.message.reply_text("Price and stock must be numeric."); return
         try: referrals_required = max(0, int(parts[6] or 0))
         except ValueError: await update.message.reply_text("referrals_required must be a whole number."); return
+        try: sale_price = max(0, float(parts[7])) if parts[7] else None
+        except ValueError: await update.message.reply_text("sale_price must be numeric."); return
         category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
         if category_id != "general":
             store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
-        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required, "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
+        pid = store.new_id("prod"); store.data["products"][pid] = {"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required, "sale_price": sale_price, "sale_ends_at": parts[8], "active": True}; store.save(); await update.message.reply_text("✅ Product added.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
     elif isinstance(state, str) and state.startswith("edit_product:"):
         pid = state.split(":", 1)[1]
         if pid not in store.data["products"]:
             await update.message.reply_text("Product no longer exists."); return
-        parts = [x.strip() for x in text.split("|", 6)]
-        while len(parts) < 7:
+        parts = [x.strip() for x in text.split("|", 8)]
+        while len(parts) < 9:
             parts.append("")
         try: price, stock = float(parts[1]), int(parts[2])
         except ValueError: await update.message.reply_text("Price and stock must be numeric."); return
         try: referrals_required = max(0, int(parts[6] or 0))
         except ValueError: await update.message.reply_text("referrals_required must be a whole number."); return
+        try: sale_price = max(0, float(parts[7])) if parts[7] else None
+        except ValueError: await update.message.reply_text("sale_price must be numeric."); return
         category_id = parts[5].lower().replace(" ", "_") if parts[5] else "general"
         if category_id != "general":
             store.data["categories"].setdefault(category_id, {"name": parts[5], "created_at": iso_now()})
-        store.data["products"][pid].update({"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required}); store.save(); await update.message.reply_text("✅ Product updated.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
+        store.data["products"][pid].update({"name": parts[0], "price": price, "stock": stock, "description": parts[3], "delivery": parts[4], "category_id": category_id, "referrals_required": referrals_required, "sale_price": sale_price, "sale_ends_at": parts[8]}); store.save(); await update.message.reply_text("✅ Product updated.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")], [button("📦 Products", "adm:products")]]))
     elif state == "broadcast":
         sent = 0
         for uid, u in store.data.get("users", {}).items():
@@ -1127,11 +1145,11 @@ async def text_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"✅ Ticket <code>{tid}</code> created.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("📂 My tickets", "tickets")], [button("🏠 Home", "home")]])); return
     if isinstance(user_state, str) and user_state.startswith("coupon:"):
         pid = user_state.split(":", 1)[1]; product_data = store.data.get("products", {}).get(pid)
-        coupon, error = active_coupon(t, update.effective_user.id, float(product_data.get("price", 0)) if product_data else 0)
+        coupon, error = active_coupon(t, update.effective_user.id, effective_price(product_data) if product_data else 0)
         if not coupon:
             await update.message.reply_text(f"❌ {error}", reply_markup=InlineKeyboardMarkup([[button("🎟️ Try again", f"coupon:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
         coupon["code"] = t.strip().upper(); ctx.user_data["pending_coupon"] = coupon
-        await update.message.reply_text(f"✅ Coupon applied. Discount: <b>{money(coupon_discount(coupon, float(product_data.get('price', 0))))}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Continue to checkout", f"buy:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
+        await update.message.reply_text(f"✅ Coupon applied. Discount: <b>{money(coupon_discount(coupon, effective_price(product_data)))}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Continue to checkout", f"buy:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
     mapping = {"🛒 Browse shop": shop, "📚 Purchase history": history, "👤 My profile": profile, "🎁 Refer & earn": referrals, "🆘 Support": support, "ℹ️ About": about, "⚙️ Admin panel": admin}
     fn = mapping.get(t)
     if fn:
