@@ -86,6 +86,10 @@ if not OXAPAY_API_KEY:
 DEFAULT_SETTINGS = {
     "shop_name": "Nova Store",
     "currency": "USD",
+    "payment_methods": {
+        "automatic": {"oxapay": {"name": "OxaPay", "currency": "USD", "enabled": True}},
+        "manual": {},
+    },
     "referral_rate": 5.0,
     "referrals_enabled": True,
     "purchases_enabled": True,
@@ -114,6 +118,7 @@ class Store:
                 log.exception("Could not load data; starting with an empty store")
                 self.data = {}
             self.data.setdefault("settings", copy.deepcopy(DEFAULT_SETTINGS))
+            self.data["settings"]["currency"] = "USD"
             self.data.setdefault("users", {})
             self.data.setdefault("products", {})
             self.data.setdefault("categories", {})
@@ -124,6 +129,7 @@ class Store:
             self.data.setdefault("tickets", {})
             self.data.setdefault("reservations", {})
             self.data.setdefault("notifications", {})
+            self.data.setdefault("payment_methods", copy.deepcopy(DEFAULT_SETTINGS["payment_methods"]))
             self.save()
 
     def save(self):
@@ -155,6 +161,7 @@ class Store:
             settings = copy.deepcopy(DEFAULT_SETTINGS)
             settings.update(self.data.get("settings", {}))
             settings["main_buttons"] = {**DEFAULT_SETTINGS["main_buttons"], **settings.get("main_buttons", {})}
+            settings["payment_methods"] = copy.deepcopy(self.data.get("payment_methods", DEFAULT_SETTINGS["payment_methods"]))
             return settings
 
     def update_settings(self, updates: dict):
@@ -253,6 +260,22 @@ def effective_price(product: dict) -> float:
         except (TypeError, ValueError):
             pass
     return float(product.get("price", 0))
+
+
+def payment_methods() -> dict:
+    methods = store.data.setdefault("payment_methods", copy.deepcopy(DEFAULT_SETTINGS["payment_methods"]))
+    methods.setdefault("automatic", {}).setdefault("oxapay", {"name": "OxaPay", "currency": "USD", "enabled": True})
+    methods.setdefault("manual", {})
+    return methods
+
+
+def enabled_payment_methods() -> list[tuple[str, str, dict]]:
+    methods = payment_methods(); result = []
+    for code, method in methods.get("automatic", {}).items():
+        if method.get("enabled", True) and (code != "oxapay" or OXAPAY_API_KEY): result.append(("automatic", code, method))
+    for code, method in methods.get("manual", {}).items():
+        if method.get("enabled", True): result.append(("manual", code, method))
+    return result
 
 
 def active_coupon(code: str, uid: int, amount: float) -> tuple[dict | None, str]:
@@ -502,7 +525,7 @@ async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text += f"\n🎁 Referral unlock: <b>{required_referrals} referrals required</b>"
     rows = []
     if (stock == -1 or stock > 0) and (not required_referrals or store.user(update.effective_user.id).get("referrals", 0) >= required_referrals):
-        rows.append([button("🟢 Buy now", f"buy:{pid}")])
+        rows.append([button("🟢 Buy now", f"checkout:{pid}")])
         rows.append([button("🎟️ Apply coupon", f"coupon:{pid}")])
     elif required_referrals and store.user(update.effective_user.id).get("referrals", 0) < required_referrals:
         rows.append([button(f"🔴 Unlock with {required_referrals} referrals", "referrals")])
@@ -514,7 +537,7 @@ async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def history(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     items = [p for p in store.data.get("purchases", {}).values() if p.get("uid") == uid]
-    orders = [o for o in store.data.get("orders", {}).values() if o.get("uid") == uid and o.get("status") == "pending"]
+    orders = [o for o in store.data.get("orders", {}).values() if o.get("uid") == uid and o.get("status") in {"pending", "manual_pending"}]
     items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     if not items and not orders:
         await show(update, "📚 <b>Purchase history</b>\n\nYou have not purchased anything yet.", InlineKeyboardMarkup([[button("🛒 Browse shop", "shop")], [button("🏠 Home", "home")]])); return
@@ -646,7 +669,7 @@ async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: st
         store.add_order(order)
         await fulfill_order(order, ctx.bot)
         await show(update, "✅ <b>Coupon accepted</b>\n\nYour free purchase is being delivered.", InlineKeyboardMarkup([[button("📚 Purchase history", "history")], [button("🏠 Home", "home")]])); return
-    payload = {"amount": final_price, "currency": store.settings().get("currency", "USD"), "lifetime": 15,
+    payload = {"amount": final_price, "currency": "USD", "lifetime": 15,
                "callback_url": f"{PUBLIC_WEBHOOK_URL}/oxapay/webhook" if PUBLIC_WEBHOOK_URL else "",
                "order_id": order_id, "description": f"{p.get('name')} for Telegram user {uid}", "thanks_message": "Payment received. Your product will be delivered automatically."}
     payload = {k: v for k, v in payload.items() if v}
@@ -667,6 +690,41 @@ async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: st
         log.exception("OxaPay invoice error")
         await show(update, f"❌ Could not create checkout right now.\n\n<code>{esc(str(exc)[:180])}</code>", nav())
 
+
+async def payment_options(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 1)[1]
+    methods = enabled_payment_methods()
+    if not methods:
+        await show(update, "🔴 <b>Payments are temporarily unavailable</b>\n\nPlease check back later.", nav()); return
+    rows = []
+    for kind, code, method in methods:
+        label = method.get("name", code)
+        if kind == "automatic": label = f"🟢 {label} (automatic)"
+        else: label = f"🔵 {label} (manual)"
+        rows.append([button(label, f"pay:{kind}:{code}:{pid}")])
+    rows.append([button("⬅️ Product", f"product:{pid}")])
+    await show(update, "💳 <b>Choose a payment method</b>\n\nOnly enabled payment methods are shown. OxaPay checkout is USD-only.", InlineKeyboardMarkup(rows))
+
+
+async def manual_payment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    _, _, code, pid = update.callback_query.data.split(":", 3)
+    method = payment_methods().get("manual", {}).get(code)
+    product_data = store.data.get("products", {}).get(pid)
+    if not method or not method.get("enabled", True) or not product_data:
+        await show(update, "❌ This payment method is no longer available.", nav()); return
+    coupon = ctx.user_data.pop("pending_coupon", None)
+    amount = round(effective_price(product_data) - (coupon_discount(coupon, effective_price(product_data)) if coupon else 0), 2)
+    reservation_id = reserve_stock(pid, update.effective_user.id)
+    if not reservation_id:
+        await show(update, "🔴 <b>Out of stock</b>", nav()); return
+    order_id = store.new_id("ord")
+    order = {"id": order_id, "uid": update.effective_user.id, "pid": pid, "amount": amount, "original_amount": effective_price(product_data), "discount": effective_price(product_data) - amount, "coupon_code": coupon.get("code") if coupon else None, "reservation_id": reservation_id, "payment_method": code, "status": "manual_pending", "created_at": iso_now()}
+    store.add_order(order)
+    for admin_id in ADMIN_IDS:
+        try: await ctx.bot.send_message(admin_id, f"🔵 Manual payment request <code>{order_id}</code>\nAmount: <b>{money(amount)}</b>\nMethod: {esc(method.get('name', code))}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Confirm manual payment", f"adm:manual_confirm:{order_id}"), button("🔴 Reject", f"adm:manual_reject:{order_id}")]]))
+        except Exception: pass
+    await show(update, f"🔵 <b>Manual payment instructions</b>\n\nOrder: <code>{order_id}</code>\nAmount: <b>{money(amount)}</b>\n\n{esc(method.get('instructions', 'Contact support for payment instructions.'))}\n\nSend payment proof to support if required. Delivery starts after admin confirmation.", InlineKeyboardMarkup([[button("📚 Purchase history", "history")], [button("🆘 Support", "support")]]))
+
 async def buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pid = update.callback_query.data.split(":", 1)[1]
     p = store.data.get("products", {}).get(pid)
@@ -676,7 +734,7 @@ async def buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = store.user(update.effective_user.id)
     if required_referrals and int(user.get("referrals", 0)) < required_referrals:
         await show(update, f"🔒 <b>Referral unlock required</b>\n\nYou need {required_referrals} referrals to unlock this file. Your current total is {user.get('referrals', 0)}.", InlineKeyboardMarkup([[button("🟢 Refer & earn", "referrals")], [button("🏠 Home", "home")]])); return
-    await create_invoice(update, ctx, pid, ctx.user_data.pop("pending_coupon", None))
+    await payment_options(update, ctx)
 
 
 async def coupon_prompt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -764,7 +822,7 @@ async def poll_pending_payments(context: ContextTypes.DEFAULT_TYPE):
     now = datetime.now(timezone.utc).timestamp()
     for reservation in store.data.get("reservations", {}).values():
         if reservation.get("active") and float(reservation.get("expires_at", 0)) <= now:
-            order = next((o for o in store.data.get("orders", {}).values() if o.get("reservation_id") == reservation.get("id") and o.get("status") == "pending"), None)
+            order = next((o for o in store.data.get("orders", {}).values() if o.get("reservation_id") == reservation.get("id") and o.get("status") in {"pending", "manual_pending"}), None)
             if order:
                 release_reservation(order); order["status"] = "expired"; store.data["orders"][order["id"]] = order
     store.save()
@@ -795,7 +853,7 @@ def admin_only(fn):
             return
         permission_map = {
             "admin_products": "products", "admin_product_detail": "products", "admin_add": "products", "admin_edit": "products", "admin_delete": "products", "admin_delete_confirm": "products", "admin_toggle": "products", "admin_coupons": "products", "admin_coupon_add": "products", "admin_coupon_toggle": "products",
-            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_force_join": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
+            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_force_join": "settings", "admin_payments": "settings", "admin_pay_add": "settings", "admin_pay_edit": "settings", "admin_pay_toggle": "settings", "admin_pay_delete": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
         }
         permission = permission_map.get(fn.__name__)
         if permission and not can_admin(update.effective_user.id, permission):
@@ -811,7 +869,7 @@ async def admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pending = sum(1 for o in orders if o.get("status") == "pending")
     text = (f"🔴 <b>Admin control center</b>\n\n👥 Users: {users}\n🧾 Orders: {len(orders)}\n⏳ Pending payments: {pending}\n\n"
             f"Purchases: {status(s.get('purchases_enabled', True))} · Referrals: {status(s.get('referrals_enabled', True))}")
-    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("🎟️ Coupons", "adm:coupons"), button("🎫 Tickets", "adm:tickets")], [button("👥 User search", "adm:user_search"), button("🎛️ Button manager", "adm:buttons")], [button("👑 Roles", "adm:roles"), button("⚙️ Settings", "adm:settings")], [button("📢 Broadcast", "adm:broadcast"), button("💾 Backup", "adm:backup")], [button("♻️ Restore", "adm:restore"), button("🏠 User home", "home")]])
+    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("💳 Payments", "adm:payments"), button("🎟️ Coupons", "adm:coupons")], [button("🎫 Tickets", "adm:tickets"), button("👥 User search", "adm:user_search")], [button("🎛️ Button manager", "adm:buttons"), button("👑 Roles", "adm:roles")], [button("⚙️ Settings", "adm:settings"), button("📢 Broadcast", "adm:broadcast")], [button("💾 Backup", "adm:backup"), button("♻️ Restore", "adm:restore")], [button("🏠 User home", "home")]])
     await show(update, text, kb)
 
 
@@ -1003,6 +1061,61 @@ async def admin_coupon_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if code in store.data.get("coupons", {}): store.data["coupons"][code]["active"] = not store.data["coupons"][code].get("active", True); store.save()
     await admin_coupons(update, ctx)
 
+
+@admin_only
+async def admin_payments(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    methods = payment_methods(); rows = []
+    for code, method in methods.get("automatic", {}).items():
+        rows.append([button(f"{'🟢' if method.get('enabled', True) else '🔴'} Automatic: {method.get('name', code)} · USD", f"adm:pay_toggle:auto:{code}")])
+    for code, method in methods.get("manual", {}).items():
+        rows.append([button(f"{'🟢' if method.get('enabled', True) else '🔴'} Manual: {method.get('name', code)}", f"adm:pay_toggle:manual:{code}")])
+        rows.append([button(f"🟢 Edit {method.get('name', code)}", f"adm:pay_edit:{code}"), button("🔴 Delete", f"adm:pay_delete:{code}")])
+    rows.append([button("🟢 Add manual method", "adm:pay_add")]); rows.append([button("⬅️ Admin center", "admin")])
+    await show(update, "💳 <b>Payment methods</b>\n\nDisabled methods are hidden from users. OxaPay is automatic and USD-only.", InlineKeyboardMarkup(rows))
+
+
+@admin_only
+async def admin_pay_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["admin_state"] = "payment_add"
+    await show(update, "🟢 <b>Add manual payment method</b>\n\nSend:\n<code>code | display name | instructions</code>", InlineKeyboardMarkup([[button("Cancel", "adm:payments")]]))
+
+
+@admin_only
+async def admin_pay_edit(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    code = update.callback_query.data.split(":", 2)[2]; method = payment_methods().get("manual", {}).get(code)
+    if not method: await show(update, "Payment method not found.", InlineKeyboardMarkup([[button("⬅️ Payments", "adm:payments")]])); return
+    ctx.user_data["admin_state"] = f"payment_edit:{code}"
+    await show(update, f"🟢 <b>Edit payment method</b>\n\nSend:\n<code>{esc(code)} | {esc(method.get('name',''))} | {esc(method.get('instructions',''))}</code>", InlineKeyboardMarkup([[button("Cancel", "adm:payments")]]))
+
+
+@admin_only
+async def admin_pay_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    _, _, kind, code = update.callback_query.data.split(":", 3); method = payment_methods().get(kind, {}).get(code)
+    if method: method["enabled"] = not method.get("enabled", True); store.save()
+    await admin_payments(update, ctx)
+
+
+@admin_only
+async def admin_pay_delete(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    code = update.callback_query.data.split(":", 2)[2]; payment_methods().get("manual", {}).pop(code, None); store.save(); await admin_payments(update, ctx)
+
+
+@admin_only
+async def admin_manual_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    oid = update.callback_query.data.split(":", 2)[2]; order = store.data.get("orders", {}).get(oid)
+    if not order or order.get("status") != "manual_pending":
+        await update.callback_query.answer("Order is no longer pending.", show_alert=True); return
+    order["status"] = "pending"; store.data["orders"][oid] = order; store.save(); await fulfill_order(order, ctx.bot)
+    await update.callback_query.answer("Manual payment confirmed.")
+
+
+@admin_only
+async def admin_manual_reject(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    oid = update.callback_query.data.split(":", 2)[2]; order = store.data.get("orders", {}).get(oid)
+    if order and order.get("status") == "manual_pending":
+        release_reservation(order); order["status"] = "rejected"; store.data["orders"][oid] = order; store.save(); notify_user(int(order["uid"]), f"Manual payment order {oid} was rejected.")
+    await update.callback_query.answer("Manual payment rejected.")
+
 @admin_only
 async def admin_buttons(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     b = store.settings()["main_buttons"]; rows = []
@@ -1057,7 +1170,14 @@ async def admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     state = ctx.user_data.pop("admin_state", None); text = update.message.text.strip()
-    if state == "force_join_config":
+    if state == "payment_add" or (isinstance(state, str) and state.startswith("payment_edit:")):
+        parts = [part.strip() for part in text.split("|", 2)]
+        if len(parts) != 3 or not parts[0] or not parts[1] or not parts[2]:
+            await update.message.reply_text("Use: code | display name | instructions"); return
+        code = parts[0].lower().replace(" ", "_")
+        store.data.setdefault("payment_methods", {}).setdefault("manual", {})[code] = {"name": parts[1], "instructions": parts[2], "enabled": True, "created_at": iso_now()}; store.save()
+        await update.message.reply_text("✅ Manual payment method saved.", reply_markup=InlineKeyboardMarkup([[button("💳 Payment methods", "adm:payments")]]))
+    elif state == "force_join_config":
         if text.lower() == "off":
             store.update_settings({"force_join_enabled": False, "force_join_channels": []})
             await update.message.reply_text("✅ Force join disabled and required channels cleared.", reply_markup=InlineKeyboardMarkup([[button("⚙️ Settings", "adm:settings")]])); return
@@ -1167,7 +1287,7 @@ async def text_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if not coupon:
             await update.message.reply_text(f"❌ {error}", reply_markup=InlineKeyboardMarkup([[button("🎟️ Try again", f"coupon:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
         coupon["code"] = t.strip().upper(); ctx.user_data["pending_coupon"] = coupon
-        await update.message.reply_text(f"✅ Coupon applied. Discount: <b>{money(coupon_discount(coupon, effective_price(product_data)))}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Continue to checkout", f"buy:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
+        await update.message.reply_text(f"✅ Coupon applied. Discount: <b>{money(coupon_discount(coupon, effective_price(product_data)))}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Continue to checkout", f"checkout:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
     mapping = {"🛒 Browse shop": shop, "📚 Purchase history": history, "👤 My profile": profile, "🎁 Refer & earn": referrals, "🆘 Support": support, "ℹ️ About": about, "⚙️ Admin panel": admin}
     fn = mapping.get(t)
     if fn:
@@ -1192,11 +1312,15 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data != "support" and not is_admin(update.effective_user.id):
         if not await require_membership(update, ctx):
             return
-    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:coupons": admin_coupons, "adm:coupon_add": admin_coupon_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:force_join": admin_force_join, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
+    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:payments": admin_payments, "adm:pay_add": admin_pay_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:force_join": admin_force_join, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
     if data in routes: await routes[data](update, ctx); return
     if data.startswith("category:"): await category(update, ctx)
     if data.startswith("product:"): await product(update, ctx)
     elif data.startswith("coupon:"): await coupon_prompt(update, ctx)
+    elif data.startswith("checkout:"): await payment_options(update, ctx)
+    elif data.startswith("pay:manual:"): await manual_payment(update, ctx)
+    elif data.startswith("pay:auto:"):
+        _, _, _, pid = data.split(":", 3); await create_invoice(update, ctx, pid, ctx.user_data.pop("pending_coupon", None))
     elif data.startswith("buy:"): await buy(update, ctx)
     elif data.startswith("order:"): await order_status(update, ctx)
     elif data.startswith("download:"): await download_purchase(update, ctx)
@@ -1212,6 +1336,11 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("adm:ticket_close:"): await admin_ticket_close(update, ctx)
     elif data.startswith("adm:ticket:"): await admin_ticket_view(update, ctx)
     elif data.startswith("adm:coupon_toggle:"): await admin_coupon_toggle(update, ctx)
+    elif data.startswith("adm:pay_toggle:"): await admin_pay_toggle(update, ctx)
+    elif data.startswith("adm:pay_edit:"): await admin_pay_edit(update, ctx)
+    elif data.startswith("adm:pay_delete:"): await admin_pay_delete(update, ctx)
+    elif data.startswith("adm:manual_confirm:"): await admin_manual_confirm(update, ctx)
+    elif data.startswith("adm:manual_reject:"): await admin_manual_reject(update, ctx)
 
 async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
     log.exception("Unhandled update error", exc_info=ctx.error)

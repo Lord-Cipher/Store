@@ -16,12 +16,12 @@ for node in ast.walk(tree):
 
 exact = {
     'verify_join', 'support', 'shop', 'history', 'profile', 'referrals', 'about', 'admin',
-    'home', 'notifications', 'ref_copy', 'tickets', 'ticket:new', 'adm:products', 'adm:add', 'adm:stats', 'adm:coupons', 'adm:coupon_add', 'adm:tickets', 'adm:roles', 'adm:buttons', 'adm:force_join',
+    'home', 'notifications', 'ref_copy', 'tickets', 'ticket:new', 'adm:products', 'adm:add', 'adm:stats', 'adm:payments', 'adm:pay_add', 'adm:coupons', 'adm:coupon_add', 'adm:tickets', 'adm:roles', 'adm:buttons', 'adm:force_join',
     'adm:settings', 'adm:ref_rate', 'adm:broadcast', 'adm:user_search', 'adm:backup',
     'adm:restore', 'adm:setting:purchases_enabled', 'adm:setting:referrals_enabled',
     'adm:setting:force_join_enabled',
 }
-prefixes = ('category:', 'product:', 'coupon:', 'buy:', 'order:', 'download:', 'ticket:view:', 'adm:product:', 'adm:edit:', 'adm:delete:', 'adm:delete_confirm:', 'adm:toggle:', 'adm:button:', 'adm:setting:', 'adm:ticket:', 'adm:ticket_reply:', 'adm:ticket_close:', 'adm:coupon_toggle:')
+prefixes = ('category:', 'product:', 'coupon:', 'checkout:', 'buy:', 'pay:', 'order:', 'download:', 'ticket:view:', 'adm:product:', 'adm:edit:', 'adm:delete:', 'adm:delete_confirm:', 'adm:toggle:', 'adm:button:', 'adm:setting:', 'adm:ticket:', 'adm:ticket_reply:', 'adm:ticket_close:', 'adm:coupon_toggle:', 'adm:pay_toggle:', 'adm:pay_edit:', 'adm:pay_delete:', 'adm:manual_confirm:', 'adm:manual_reject:')
 unhandled = sorted(c for c in callbacks if c not in exact and not c.startswith(prefixes))
 assert not unhandled, f'Unhandled static callback values: {unhandled}'
 

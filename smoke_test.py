@@ -32,6 +32,10 @@ with tempfile.TemporaryDirectory() as td:
     bot.release_reservation({'reservation_id': reservation})
     assert bot.store.data['products']['p1']['stock'] == 2
     assert bot.admin_role(1001) == 'owner'
+    assert bot.store.settings()['currency'] == 'USD'
+    assert any(code == 'oxapay' for _, code, _ in bot.enabled_payment_methods())
+    bot.store.data['payment_methods']['manual']['demo'] = {'name': 'Demo Manual', 'instructions': 'Send proof', 'enabled': False}
+    assert not any(code == 'demo' for _, code, _ in bot.enabled_payment_methods())
     bot.notify_user(1001, 'test notification')
     assert bot.store.data['notifications']['1001'][-1]['message'] == 'test notification'
     enabled, channels = bot.force_join_settings()

@@ -31,6 +31,7 @@ This version replaces the legacy mixed-language experience with an English-first
 - Payment analytics, low-stock alerts, user notifications, and a richer user dashboard.
 - Admin roles for owner, manager, finance, support, and viewer access.
 - Force join is runtime-configurable from **Admin control center → Settings → Manage required channels**; channel IDs, titles, URLs, and enabled state are stored in the database. The environment variable is only an optional initial seed.
+- Payment methods are runtime-configurable from **Admin control center → Payments**. Automatic OxaPay is USD-only; manual methods can be added, edited, disabled, or deleted. Disabled methods are hidden from the user checkout selector.
 - Admin control center with product toggles, analytics, button manager, settings, and broadcast.
 - Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
 
