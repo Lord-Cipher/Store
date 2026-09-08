@@ -120,6 +120,10 @@ class Store:
             self.data.setdefault("orders", {})
             self.data.setdefault("purchases", {})
             self.data.setdefault("admins", {str(uid): {"role": "owner"} for uid in ADMIN_IDS})
+            self.data.setdefault("coupons", {})
+            self.data.setdefault("tickets", {})
+            self.data.setdefault("reservations", {})
+            self.data.setdefault("notifications", {})
             self.save()
 
     def save(self):
@@ -213,6 +217,85 @@ def referral_requirement(product: dict) -> int:
         return max(0, int(product.get("referrals_required", 0)))
     except (TypeError, ValueError):
         return 0
+
+
+def admin_role(uid: int) -> str:
+    if uid in ADMIN_IDS:
+        return "owner"
+    return str(store.data.get("admins", {}).get(str(uid), {}).get("role", "viewer")).lower()
+
+
+ROLE_PERMISSIONS = {
+    "owner": {"products", "orders", "users", "support", "settings", "broadcast", "backup"},
+    "manager": {"products", "orders", "users", "support", "broadcast"},
+    "finance": {"orders", "users"},
+    "support": {"users", "support"},
+    "viewer": set(),
+}
+
+
+def can_admin(uid: int, permission: str) -> bool:
+    return is_admin(uid) and permission in ROLE_PERMISSIONS.get(admin_role(uid), set())
+
+
+def coupon_discount(coupon: dict, amount: float) -> float:
+    if coupon.get("type", "percent") == "fixed":
+        return min(amount, max(0.0, float(coupon.get("value", 0))))
+    return min(amount, round(amount * max(0.0, float(coupon.get("value", 0))) / 100, 2))
+
+
+def active_coupon(code: str, uid: int, amount: float) -> tuple[dict | None, str]:
+    code = code.strip().upper()
+    coupon = store.data.get("coupons", {}).get(code)
+    if not coupon or not coupon.get("active", True):
+        return None, "Coupon not found or disabled."
+    if coupon.get("expires_at") and coupon["expires_at"] < iso_now():
+        return None, "This coupon has expired."
+    if int(coupon.get("uses", 0)) >= int(coupon.get("max_uses", -1)) >= 0:
+        return None, "This coupon has reached its usage limit."
+    if float(amount) < float(coupon.get("min_amount", 0)):
+        return None, f"Minimum order amount is {money(coupon.get('min_amount', 0))}."
+    if str(uid) in coupon.get("used_by", []):
+        return None, "You have already used this coupon."
+    return coupon, ""
+
+
+def notify_user(uid: int, message: str):
+    store.data.setdefault("notifications", {}).setdefault(str(uid), []).append({"message": message, "created_at": iso_now(), "read": False})
+    store.save()
+
+
+def reserve_stock(pid: str, uid: int) -> str | None:
+    product = store.data.get("products", {}).get(pid)
+    if not product or int(product.get("stock", 0)) == 0:
+        return None
+    if int(product.get("stock", -1)) > 0:
+        product["stock"] = int(product["stock"]) - 1
+        reservation_id = store.new_id("res")
+        store.data["reservations"][reservation_id] = {"id": reservation_id, "pid": pid, "uid": uid, "expires_at": (datetime.now(timezone.utc).timestamp() + 900), "active": True}
+        store.save()
+        return reservation_id
+    return "unlimited"
+
+
+def release_reservation(order: dict):
+    reservation_id = order.get("reservation_id")
+    if not reservation_id or reservation_id == "unlimited":
+        return
+    reservation = store.data.get("reservations", {}).get(reservation_id)
+    if reservation and reservation.get("active"):
+        product = store.data.get("products", {}).get(reservation.get("pid"))
+        if product:
+            product["stock"] = int(product.get("stock", 0)) + 1
+        reservation["active"] = False
+        store.save()
+
+
+def confirm_reservation(order: dict):
+    reservation_id = order.get("reservation_id")
+    if reservation_id and reservation_id != "unlimited" and reservation_id in store.data.get("reservations", {}):
+        store.data["reservations"][reservation_id]["active"] = False
+        store.save()
 
 
 def is_admin(uid: int) -> bool:
@@ -407,6 +490,7 @@ async def product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     rows = []
     if (stock == -1 or stock > 0) and (not required_referrals or store.user(update.effective_user.id).get("referrals", 0) >= required_referrals):
         rows.append([button("🟢 Buy now", f"buy:{pid}")])
+        rows.append([button("🎟️ Apply coupon", f"coupon:{pid}")])
     elif required_referrals and store.user(update.effective_user.id).get("referrals", 0) < required_referrals:
         rows.append([button(f"🔴 Unlock with {required_referrals} referrals", "referrals")])
     elif stock == 0:
@@ -445,7 +529,7 @@ async def order_status(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if remote_status in {"paid", "completed"}:
                 await fulfill_order(order, ctx.bot)
             elif remote_status in {"expired", "failed", "cancelled", "canceled"}:
-                order["status"] = remote_status; store.data["orders"][oid] = order; store.save()
+                order["status"] = remote_status; release_reservation(order); store.data["orders"][oid] = order; store.save()
         except Exception as exc:
             log.warning("Manual order status check failed: %s", exc)
     current = store.data.get("orders", {}).get(oid, {}).get("status", "pending")
@@ -460,7 +544,8 @@ async def download_purchase(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     delivery = purchase.get("delivery", "")
     await update.callback_query.answer("Preparing your delivery...")
     if delivery.startswith("file:"):
-        await ctx.bot.send_document(update.effective_user.id, delivery[5:].strip(), caption=f"📦 {purchase.get('product_name')} — re-download")
+        for index, item in enumerate(delivery.split("||"), 1):
+            await ctx.bot.send_document(update.effective_user.id, item[5:].strip(), caption=f"📦 {purchase.get('product_name')} — file {index}")
     elif delivery:
         await ctx.bot.send_message(update.effective_user.id, f"📦 <b>{esc(purchase.get('product_name'))}</b>\n\n<code>{esc(delivery)}</code>", parse_mode=ParseMode.HTML)
     else:
@@ -468,9 +553,21 @@ async def download_purchase(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def profile(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     u = store.user(update.effective_user.id)
-    text = (f"👤 <b>My profile</b>\n\n🆔 ID: <code>{u['id']}</code>\n"
+    purchases = [p for p in store.data.get("purchases", {}).values() if int(p.get("uid", 0)) == update.effective_user.id]
+    spent = sum(float(p.get("price", 0)) for p in purchases)
+    unread = sum(1 for n in store.data.get("notifications", {}).get(str(update.effective_user.id), []) if not n.get("read"))
+    text = (f"👤 <b>My dashboard</b>\n\n🆔 ID: <code>{u['id']}</code>\n"
             f"💰 Balance: <b>{money(u.get('balance', 0))}</b>\n👥 Referrals: {u.get('referrals', 0)}\n"
-            f"🎁 Referral earnings: {money(u.get('referral_earnings', 0))}")
+            f"🎁 Referral earnings: {money(u.get('referral_earnings', 0))}\n📦 Purchases: {len(purchases)}\n💳 Total spent: {money(spent)}\n🔔 Notifications: {unread}")
+    await show(update, text, InlineKeyboardMarkup([[button("📚 Purchase history", "history")], [button("🔔 Notifications", "notifications")], [button("🏠 Home", "home")]]))
+
+
+async def notifications(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = str(update.effective_user.id)
+    items = store.data.get("notifications", {}).get(uid, [])[-20:]
+    for item in items: item["read"] = True
+    store.save()
+    text = "🔔 <b>Notifications</b>\n\n" + ("\n".join(f"• {esc(item.get('message'))}" for item in reversed(items)) if items else "No notifications.")
     await show(update, text, nav())
 
 async def referrals(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -486,17 +583,57 @@ async def ref_copy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.callback_query.answer(f"Your referral link: https://t.me/{me.username}?start=ref_{uid}", show_alert=True)
 
 async def support(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await show(update, "🆘 <b>Support</b>\n\nNeed help? Contact our support team.", InlineKeyboardMarkup([[InlineKeyboardButton("Open support", url=store.settings().get("support_url", SUPPORT_URL))], [button("🏠 Home", "home")]]))
+    await show(update, "🆘 <b>Support</b>\n\nCreate a ticket for help from the team, or use the external support link.", InlineKeyboardMarkup([[button("🎫 Open support ticket", "ticket:new")], [button("📂 My tickets", "tickets")], [InlineKeyboardButton("Open support link", url=store.settings().get("support_url", SUPPORT_URL))], [button("🏠 Home", "home")]]))
+
+
+async def ticket_new(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["user_state"] = "new_ticket"
+    await show(update, "🎫 <b>New support ticket</b>\n\nSend your message as the next chat message.", InlineKeyboardMarkup([[button("Cancel", "support")]]))
+
+
+async def tickets(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    uid = update.effective_user.id
+    mine = [t for t in store.data.get("tickets", {}).values() if int(t.get("uid", 0)) == uid]
+    if not mine:
+        await show(update, "📂 <b>My tickets</b>\n\nYou have no support tickets.", InlineKeyboardMarkup([[button("🎫 Open ticket", "ticket:new")], [button("🏠 Home", "home")]])); return
+    rows = []
+    lines = ["📂 <b>My tickets</b>", ""]
+    for ticket in sorted(mine, key=lambda x: x.get("created_at", ""), reverse=True)[:20]:
+        lines.append(f"• {ticket.get('id')} — {ticket.get('status', 'open').title()}")
+        rows.append([button(f"🔵 {ticket.get('id')} · {ticket.get('status', 'open')}", f"ticket:view:{ticket.get('id')}")])
+    rows.append([button("🎫 New ticket", "ticket:new"), button("🏠 Home", "home")])
+    await show(update, "\n".join(lines), InlineKeyboardMarkup(rows))
+
+
+async def ticket_view(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    tid = update.callback_query.data.split(":", 2)[2]
+    ticket = store.data.get("tickets", {}).get(tid)
+    if not ticket or int(ticket.get("uid", 0)) != update.effective_user.id:
+        await update.callback_query.answer("Ticket not found.", show_alert=True); return
+    text = f"🎫 <b>Ticket {esc(tid)}</b>\n\nStatus: <b>{esc(ticket.get('status', 'open').title())}</b>\n\n{esc(ticket.get('message', ''))}"
+    if ticket.get("reply"): text += f"\n\n💬 <b>Support reply:</b>\n{esc(ticket['reply'])}"
+    await show(update, text, InlineKeyboardMarkup([[button("📂 My tickets", "tickets")], [button("🏠 Home", "home")]]))
 
 async def about(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await show(update, f"ℹ️ <b>About {esc(store.settings()['shop_name'])}</b>\n\nA modern automated digital store powered by OxaPay.", nav())
 
-async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: str):
+async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: str, coupon: dict | None = None):
     if not OXAPAY_API_KEY:
         await show(update, "⚠️ Payments are not configured yet. Ask an administrator to set OXAPAY_MERCHANT_API_KEY.", nav()); return
     p = store.data["products"].get(pid); uid = update.effective_user.id
+    original_price = float(p["price"])
+    discount = coupon_discount(coupon, original_price) if coupon else 0.0
+    final_price = round(original_price - discount, 2)
+    reservation_id = reserve_stock(pid, uid)
+    if not reservation_id:
+        await show(update, "🔴 <b>Out of stock</b>\n\nAnother checkout used the last available unit.", nav()); return
     order_id = store.new_id("ord")
-    payload = {"amount": float(p["price"]), "currency": store.settings().get("currency", "USD"), "lifetime": 60,
+    if final_price <= 0:
+        order = {"id": order_id, "uid": uid, "pid": pid, "amount": 0.0, "original_amount": original_price, "discount": discount, "coupon_code": coupon.get("code") if coupon else None, "reservation_id": reservation_id, "status": "pending", "created_at": iso_now()}
+        store.add_order(order)
+        await fulfill_order(order, ctx.bot)
+        await show(update, "✅ <b>Coupon accepted</b>\n\nYour free purchase is being delivered.", InlineKeyboardMarkup([[button("📚 Purchase history", "history")], [button("🏠 Home", "home")]])); return
+    payload = {"amount": final_price, "currency": store.settings().get("currency", "USD"), "lifetime": 15,
                "callback_url": f"{PUBLIC_WEBHOOK_URL}/oxapay/webhook" if PUBLIC_WEBHOOK_URL else "",
                "order_id": order_id, "description": f"{p.get('name')} for Telegram user {uid}", "thanks_message": "Payment received. Your product will be delivered automatically."}
     payload = {k: v for k, v in payload.items() if v}
@@ -507,10 +644,13 @@ async def create_invoice(update: Update, ctx: ContextTypes.DEFAULT_TYPE, pid: st
         data = result.get("data", {})
         if not data.get("payment_url"):
             raise RuntimeError(result.get("message", "OxaPay did not return a payment URL"))
-        store.add_order({"id": order_id, "uid": uid, "pid": pid, "amount": float(p["price"]), "status": "pending", "track_id": data.get("track_id"), "created_at": iso_now()})
+        store.add_order({"id": order_id, "uid": uid, "pid": pid, "amount": final_price, "original_amount": original_price, "discount": discount, "coupon_code": coupon.get("code") if coupon else None, "reservation_id": reservation_id, "status": "pending", "track_id": data.get("track_id"), "created_at": iso_now()})
         payment_note = "Automatic confirmation is active; you do not need to send a screenshot or transaction ID."
-        await show(update, f"💳 <b>Secure checkout</b>\n\nProduct: {esc(p.get('name'))}\nAmount: <b>{money(p.get('price', 0))}</b>\n\nPay using the secure OxaPay page. {payment_note}", InlineKeyboardMarkup([[InlineKeyboardButton("🟢 Pay with OxaPay", url=data["payment_url"])], [button("📚 Purchase history", "history")], [button("🏠 Home", "home")]]))
+        discount_line = f"\n🎟️ Discount: <b>-{money(discount)}</b>" if discount else ""
+        await show(update, f"💳 <b>Secure checkout</b>\n\nProduct: {esc(p.get('name'))}\nAmount: <b>{money(final_price)}</b>{discount_line}\n\nPay using the secure OxaPay page. {payment_note}", InlineKeyboardMarkup([[InlineKeyboardButton("🟢 Pay with OxaPay", url=data["payment_url"])], [button("📚 Purchase history", "history")], [button("🏠 Home", "home")]]))
     except Exception as exc:
+        fake_order = {"reservation_id": reservation_id}
+        release_reservation(fake_order)
         log.exception("OxaPay invoice error")
         await show(update, f"❌ Could not create checkout right now.\n\n<code>{esc(str(exc)[:180])}</code>", nav())
 
@@ -523,13 +663,21 @@ async def buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = store.user(update.effective_user.id)
     if required_referrals and int(user.get("referrals", 0)) < required_referrals:
         await show(update, f"🔒 <b>Referral unlock required</b>\n\nYou need {required_referrals} referrals to unlock this file. Your current total is {user.get('referrals', 0)}.", InlineKeyboardMarkup([[button("🟢 Refer & earn", "referrals")], [button("🏠 Home", "home")]])); return
-    await create_invoice(update, ctx, pid)
+    await create_invoice(update, ctx, pid, ctx.user_data.pop("pending_coupon", None))
+
+
+async def coupon_prompt(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pid = update.callback_query.data.split(":", 1)[1]
+    ctx.user_data["user_state"] = f"coupon:{pid}"
+    await show(update, "🎟️ <b>Enter coupon code</b>\n\nSend the coupon code as your next message.", InlineKeyboardMarkup([[button("Cancel", f"product:{pid}")]]))
 
 async def fulfill_order(order: dict, bot):
     if order.get("status") == "paid": return
     p = store.data.get("products", {}).get(order.get("pid")); uid = int(order["uid"])
     if not p: return
-    if int(p.get("stock", -1)) == 0:
+    reservation = store.data.get("reservations", {}).get(order.get("reservation_id"), {})
+    has_reservation = order.get("reservation_id") == "unlimited" or reservation.get("active")
+    if int(p.get("stock", -1)) == 0 and not has_reservation:
         order["status"] = "paid_out_of_stock"; order["paid_at"] = iso_now(); store.data["orders"][order["id"]] = order; store.save()
         try:
             await bot.send_message(uid, "⚠️ Your payment was confirmed, but this product sold out before delivery. Please contact support for a replacement or refund.")
@@ -537,10 +685,22 @@ async def fulfill_order(order: dict, bot):
             pass
         return
     order["status"] = "paid"; order["paid_at"] = iso_now(); store.data["orders"][order["id"]] = order
-    if p.get("stock", -1) > 0: p["stock"] -= 1
+    if has_reservation:
+        confirm_reservation(order)
+    elif p.get("stock", -1) > 0:
+        p["stock"] -= 1
     store.data["products"][order["pid"]] = p
-    purchase = {"uid": uid, "product_name": p.get("name"), "price": float(p.get("price", 0)), "status": "paid", "created_at": iso_now(), "delivery": p.get("delivery", "")}
+    if int(p.get("stock", -1)) in {0, 1, 2, 3, 4, 5}:
+        alert = f"⚠️ Low stock: {p.get('name')} has {p.get('stock')} units remaining."
+        for admin_id in ADMIN_IDS:
+            notify_user(admin_id, alert)
+            try: await bot.send_message(admin_id, alert)
+            except Exception: pass
+    purchase = {"uid": uid, "product_name": p.get("name"), "price": float(order.get("amount", p.get("price", 0))), "original_price": float(order.get("original_amount", p.get("price", 0))), "discount": float(order.get("discount", 0)), "coupon_code": order.get("coupon_code"), "status": "paid", "created_at": iso_now(), "delivery": p.get("delivery", "")}
     store.add_purchase(purchase); store.save()
+    coupon_code = order.get("coupon_code")
+    if coupon_code and coupon_code in store.data.get("coupons", {}):
+        coupon = store.data["coupons"][coupon_code]; coupon["uses"] = int(coupon.get("uses", 0)) + 1; coupon.setdefault("used_by", []).append(str(uid)); store.save()
     s = store.settings(); u = store.user(uid)
     ref = u.get("referrer_id")
     if s.get("referrals_enabled", True) and ref:
@@ -552,7 +712,8 @@ async def fulfill_order(order: dict, bot):
     try:
         await bot.send_message(uid, f"✅ <b>Payment confirmed</b>\n\nYour purchase <b>{esc(p.get('name'))}</b> is ready.", parse_mode=ParseMode.HTML, reply_markup=nav())
         if delivery.startswith("file:"):
-            await bot.send_document(uid, delivery[5:].strip(), caption=f"📦 {p.get('name')} — instant delivery")
+            for index, item in enumerate(delivery.split("||"), 1):
+                await bot.send_document(uid, item[5:].strip(), caption=f"📦 {p.get('name')} — file {index}")
         elif delivery:
             await bot.send_message(uid, f"📦 <b>Your delivery</b>\n\n<code>{esc(delivery)}</code>", parse_mode=ParseMode.HTML)
     except Exception:
@@ -587,6 +748,13 @@ def get_oxapay_payment_status(track_id: str) -> dict:
 
 async def poll_pending_payments(context: ContextTypes.DEFAULT_TYPE):
     """Fallback payment automation for bot hosts that cannot receive HTTPS callbacks."""
+    now = datetime.now(timezone.utc).timestamp()
+    for reservation in store.data.get("reservations", {}).values():
+        if reservation.get("active") and float(reservation.get("expires_at", 0)) <= now:
+            order = next((o for o in store.data.get("orders", {}).values() if o.get("reservation_id") == reservation.get("id") and o.get("status") == "pending"), None)
+            if order:
+                release_reservation(order); order["status"] = "expired"; store.data["orders"][order["id"]] = order
+    store.save()
     pending = [order for order in store.data.get("orders", {}).values()
                if order.get("status") == "pending" and order.get("track_id")]
     for order in pending[:50]:
@@ -598,6 +766,7 @@ async def poll_pending_payments(context: ContextTypes.DEFAULT_TYPE):
                 await fulfill_order(order, context.bot)
             elif status_value in {"expired", "failed", "canceled", "cancelled"}:
                 order["status"] = status_value
+                release_reservation(order)
                 store.data["orders"][order["id"]] = order
                 store.save()
         except Exception as exc:
@@ -611,6 +780,15 @@ def admin_only(fn):
             if update.callback_query: await update.callback_query.answer("Admin access required", show_alert=True)
             else: await update.message.reply_text("🚫 Admin access required.")
             return
+        permission_map = {
+            "admin_products": "products", "admin_product_detail": "products", "admin_add": "products", "admin_edit": "products", "admin_delete": "products", "admin_delete_confirm": "products", "admin_toggle": "products", "admin_coupons": "products", "admin_coupon_add": "products", "admin_coupon_toggle": "products",
+            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
+        }
+        permission = permission_map.get(fn.__name__)
+        if permission and not can_admin(update.effective_user.id, permission):
+            if update.callback_query: await update.callback_query.answer(f"Your role cannot access {permission}.", show_alert=True)
+            else: await update.message.reply_text("🚫 Your admin role does not have permission for this action.")
+            return
         return await fn(update, ctx)
     return wrapped
 
@@ -620,8 +798,55 @@ async def admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pending = sum(1 for o in orders if o.get("status") == "pending")
     text = (f"🔴 <b>Admin control center</b>\n\n👥 Users: {users}\n🧾 Orders: {len(orders)}\n⏳ Pending payments: {pending}\n\n"
             f"Purchases: {status(s.get('purchases_enabled', True))} · Referrals: {status(s.get('referrals_enabled', True))}")
-    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("👥 User search", "adm:user_search"), button("🎛️ Button manager", "adm:buttons")], [button("⚙️ Settings", "adm:settings"), button("📢 Broadcast", "adm:broadcast")], [button("💾 Backup", "adm:backup"), button("♻️ Restore", "adm:restore")], [button("🏠 User home", "home")]])
+    kb = InlineKeyboardMarkup([[button("📦 Products", "adm:products"), button("📊 Analytics", "adm:stats")], [button("🎟️ Coupons", "adm:coupons"), button("🎫 Tickets", "adm:tickets")], [button("👥 User search", "adm:user_search"), button("🎛️ Button manager", "adm:buttons")], [button("👑 Roles", "adm:roles"), button("⚙️ Settings", "adm:settings")], [button("📢 Broadcast", "adm:broadcast"), button("💾 Backup", "adm:backup")], [button("♻️ Restore", "adm:restore"), button("🏠 User home", "home")]])
     await show(update, text, kb)
+
+
+@admin_only
+async def admin_tickets(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    tickets_data = store.data.get("tickets", {})
+    open_tickets = [t for t in tickets_data.values() if t.get("status") != "closed"]
+    if not open_tickets:
+        await show(update, "🎫 <b>Support inbox</b>\n\nNo open tickets.", InlineKeyboardMarkup([[button("⬅️ Admin center", "admin")]])); return
+    rows = [[button(f"🔵 {t.get('id')} · {t.get('status', 'open')}", f"adm:ticket:{t.get('id')}")] for t in open_tickets[:30]]
+    rows.append([button("⬅️ Admin center", "admin")])
+    await show(update, "🎫 <b>Support inbox</b>\n\nSelect a ticket to reply:", InlineKeyboardMarkup(rows))
+
+
+@admin_only
+async def admin_ticket_view(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    tid = update.callback_query.data.split(":", 2)[2]
+    ticket = store.data.get("tickets", {}).get(tid)
+    if not ticket:
+        await show(update, "Ticket not found.", InlineKeyboardMarkup([[button("⬅️ Tickets", "adm:tickets")]])); return
+    text = f"🎫 <b>{esc(tid)}</b>\nUser: <code>{ticket.get('uid')}</code>\nStatus: {esc(ticket.get('status', 'open'))}\n\n{esc(ticket.get('message', ''))}"
+    if ticket.get("reply"): text += f"\n\nReply: {esc(ticket['reply'])}"
+    await show(update, text, InlineKeyboardMarkup([[button("🟢 Reply", f"adm:ticket_reply:{tid}"), button("🔴 Close", f"adm:ticket_close:{tid}")], [button("⬅️ Tickets", "adm:tickets")]]))
+
+
+@admin_only
+async def admin_ticket_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    tid = update.callback_query.data.split(":", 2)[2]
+    ctx.user_data["admin_state"] = f"ticket_reply:{tid}"
+    await show(update, "🟢 Send the support reply as your next message.", InlineKeyboardMarkup([[button("Cancel", f"adm:ticket:{tid}")]]))
+
+
+@admin_only
+async def admin_ticket_close(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    tid = update.callback_query.data.split(":", 2)[2]
+    if tid in store.data.get("tickets", {}):
+        store.data["tickets"][tid]["status"] = "closed"; store.save()
+        notify_user(int(store.data["tickets"][tid]["uid"]), f"Ticket {tid} has been closed by support.")
+    await admin_tickets(update, ctx)
+
+
+@admin_only
+async def admin_roles(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not is_owner(update.effective_user.id):
+        await update.callback_query.answer("Owner access required.", show_alert=True); return
+    ctx.user_data["admin_state"] = "role_update"
+    current = ", ".join(f"{uid}:{data.get('role','viewer')}" for uid, data in store.data.get("admins", {}).items())
+    await show(update, f"👑 <b>Admin roles</b>\n\nCurrent: <code>{esc(current or 'none')}</code>\n\nSend: <code>user_id | owner/manager/finance/support/viewer</code>", InlineKeyboardMarkup([[button("Cancel", "admin")]]))
 
 
 @admin_only
@@ -739,9 +964,30 @@ async def admin_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 @admin_only
 async def admin_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    orders = list(store.data.get("orders", {}).values()); paid = [o for o in orders if o.get("status") == "paid"]
+    orders = list(store.data.get("orders", {}).values()); paid = [o for o in orders if o.get("status") == "paid"]; pending = [o for o in orders if o.get("status") == "pending"]; failed = [o for o in orders if o.get("status") in {"failed", "expired", "cancelled", "canceled"}]
     revenue = sum(float(o.get("amount", 0)) for o in paid)
-    await show(update, f"📊 <b>Analytics</b>\n\n👥 Users: {len(store.data.get('users', {}))}\n📦 Products: {len(store.data.get('products', {}))}\n✅ Paid orders: {len(paid)}\n💰 Revenue: <b>{money(revenue)}</b>", InlineKeyboardMarkup([[button("⬅️ Admin center", "admin")]]))
+    low_stock = sum(1 for p in store.data.get("products", {}).values() if 0 <= int(p.get("stock", 0)) <= 5)
+    await show(update, f"📊 <b>Analytics</b>\n\n👥 Users: {len(store.data.get('users', {}))}\n📦 Products: {len(store.data.get('products', {}))}\n✅ Paid orders: {len(paid)}\n⏳ Pending payments: {len(pending)}\n🔴 Failed/expired: {len(failed)}\n⚠️ Low/out stock products: {low_stock}\n💰 Revenue: <b>{money(revenue)}</b>", InlineKeyboardMarkup([[button("⬅️ Admin center", "admin")]]))
+
+
+@admin_only
+async def admin_coupons(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    rows = [[button(f"{'🟢' if c.get('active', True) else '🔴'} {code} · {c.get('value')} {c.get('type', 'percent')}", f"adm:coupon_toggle:{code}")] for code, c in store.data.get("coupons", {}).items()]
+    rows.append([button("🟢 Create coupon", "adm:coupon_add")]); rows.append([button("⬅️ Admin center", "admin")])
+    await show(update, "🎟️ <b>Coupon manager</b>\n\nTap a coupon to enable or disable it.", InlineKeyboardMarkup(rows))
+
+
+@admin_only
+async def admin_coupon_add(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["admin_state"] = "coupon_create"
+    await show(update, "🟢 <b>Create coupon</b>\n\nSend:\n<code>CODE | percent/fixed | value | max_uses | expires_at | min_amount</code>\n\nUse max_uses -1 for unlimited and expires_at blank for no expiry.", InlineKeyboardMarkup([[button("Cancel", "adm:coupons")]]))
+
+
+@admin_only
+async def admin_coupon_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    code = update.callback_query.data.split(":", 2)[2]
+    if code in store.data.get("coupons", {}): store.data["coupons"][code]["active"] = not store.data["coupons"][code].get("active", True); store.save()
+    await admin_coupons(update, ctx)
 
 @admin_only
 async def admin_buttons(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -788,7 +1034,36 @@ async def admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     state = ctx.user_data.pop("admin_state", None); text = update.message.text.strip()
-    if state == "user_search":
+    if state == "coupon_create":
+        parts = [part.strip() for part in text.split("|", 5)]
+        if len(parts) != 6 or parts[1] not in {"percent", "fixed"}:
+            await update.message.reply_text("Use: CODE | percent/fixed | value | max_uses | expires_at | min_amount"); return
+        try: value, max_uses, min_amount = float(parts[2]), int(parts[3]), float(parts[5] or 0)
+        except ValueError:
+            await update.message.reply_text("Value, max_uses, and min_amount must be numeric."); return
+        code = parts[0].upper()
+        store.data["coupons"][code] = {"code": code, "type": parts[1], "value": value, "max_uses": max_uses, "expires_at": parts[4], "min_amount": min_amount, "uses": 0, "used_by": [], "active": True, "created_at": iso_now()}; store.save()
+        await update.message.reply_text("✅ Coupon created.", reply_markup=InlineKeyboardMarkup([[button("🎟️ Coupon manager", "adm:coupons")]]))
+    elif state == "role_update":
+        if not is_owner(update.effective_user.id):
+            await update.message.reply_text("Owner access required."); return
+        parts = [part.strip() for part in text.split("|", 1)]
+        if len(parts) != 2 or parts[1].lower() not in ROLE_PERMISSIONS:
+            await update.message.reply_text("Use: user_id | owner/manager/finance/support/viewer"); return
+        if not parts[0].isdigit():
+            await update.message.reply_text("User ID must be numeric."); return
+        store.data["admins"][parts[0]] = {"id": int(parts[0]), "role": parts[1].lower(), "updated_at": iso_now()}; store.save()
+        await update.message.reply_text("✅ Admin role updated.", reply_markup=InlineKeyboardMarkup([[button("🔴 Admin control center", "admin")]]))
+    elif isinstance(state, str) and state.startswith("ticket_reply:"):
+        tid = state.split(":", 1)[1]; ticket = store.data.get("tickets", {}).get(tid)
+        if not ticket:
+            await update.message.reply_text("Ticket no longer exists."); return
+        ticket["reply"] = text; ticket["status"] = "waiting_user"; ticket["replied_at"] = iso_now(); store.save()
+        notify_user(int(ticket["uid"]), f"Support replied to ticket {tid}: {text}")
+        try: await ctx.bot.send_message(int(ticket["uid"]), f"💬 <b>Support reply for {tid}</b>\n\n{esc(text)}", parse_mode=ParseMode.HTML)
+        except Exception: pass
+        await update.message.reply_text("✅ Reply sent.", reply_markup=InlineKeyboardMarkup([[button("🎫 Tickets", "adm:tickets")]]))
+    elif state == "user_search":
         query = text.lstrip("@").lower()
         matches = []
         for uid, user in store.data.get("users", {}).items():
@@ -841,6 +1116,22 @@ async def text_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     t = update.message.text
     if is_admin(update.effective_user.id) and ctx.user_data.get("admin_state"):
         await admin_text(update, ctx); return
+    user_state = ctx.user_data.pop("user_state", None)
+    if isinstance(user_state, str) and user_state == "new_ticket":
+        tid = store.new_id("ticket")
+        store.data["tickets"][tid] = {"id": tid, "uid": update.effective_user.id, "message": t, "status": "open", "created_at": iso_now()}; store.save()
+        for admin_id in ADMIN_IDS:
+            notify_user(admin_id, f"New support ticket {tid} from user {update.effective_user.id}.")
+            try: await ctx.bot.send_message(admin_id, f"🎫 <b>New ticket {tid}</b>\nUser: <code>{update.effective_user.id}</code>\n\n{esc(t)}", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🎫 Open ticket", f"adm:ticket:{tid}")]]))
+            except Exception: pass
+        await update.message.reply_text(f"✅ Ticket <code>{tid}</code> created.", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("📂 My tickets", "tickets")], [button("🏠 Home", "home")]])); return
+    if isinstance(user_state, str) and user_state.startswith("coupon:"):
+        pid = user_state.split(":", 1)[1]; product_data = store.data.get("products", {}).get(pid)
+        coupon, error = active_coupon(t, update.effective_user.id, float(product_data.get("price", 0)) if product_data else 0)
+        if not coupon:
+            await update.message.reply_text(f"❌ {error}", reply_markup=InlineKeyboardMarkup([[button("🎟️ Try again", f"coupon:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
+        coupon["code"] = t.strip().upper(); ctx.user_data["pending_coupon"] = coupon
+        await update.message.reply_text(f"✅ Coupon applied. Discount: <b>{money(coupon_discount(coupon, float(product_data.get('price', 0))))}</b>", parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup([[button("🟢 Continue to checkout", f"buy:{pid}")], [button("⬅️ Product", f"product:{pid}")]])); return
     mapping = {"🛒 Browse shop": shop, "📚 Purchase history": history, "👤 My profile": profile, "🎁 Refer & earn": referrals, "🆘 Support": support, "ℹ️ About": about, "⚙️ Admin panel": admin}
     fn = mapping.get(t)
     if fn:
@@ -855,6 +1146,8 @@ async def document_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data
+    if data in {"support", "tickets"} or data.startswith("product:") or data in {"home", "admin"}:
+        ctx.user_data.pop("user_state", None)
     if data in {"admin", "adm:products", "adm:settings"} or data.startswith("adm:product:"):
         ctx.user_data.pop("admin_state", None)
     if data == "verify_join":
@@ -863,10 +1156,11 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data != "support" and not is_admin(update.effective_user.id):
         if not await require_membership(update, ctx):
             return
-    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "referrals": referrals, "ref_copy": ref_copy, "support": support, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
+    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:coupons": admin_coupons, "adm:coupon_add": admin_coupon_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
     if data in routes: await routes[data](update, ctx); return
     if data.startswith("category:"): await category(update, ctx)
     if data.startswith("product:"): await product(update, ctx)
+    elif data.startswith("coupon:"): await coupon_prompt(update, ctx)
     elif data.startswith("buy:"): await buy(update, ctx)
     elif data.startswith("order:"): await order_status(update, ctx)
     elif data.startswith("download:"): await download_purchase(update, ctx)
@@ -877,6 +1171,11 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("adm:toggle:"): await admin_toggle(update, ctx)
     elif data.startswith("adm:button:"): await admin_button_toggle(update, ctx)
     elif data.startswith("adm:setting:"): await admin_setting_toggle(update, ctx)
+    elif data.startswith("ticket:view:"): await ticket_view(update, ctx)
+    elif data.startswith("adm:ticket_reply:"): await admin_ticket_reply(update, ctx)
+    elif data.startswith("adm:ticket_close:"): await admin_ticket_close(update, ctx)
+    elif data.startswith("adm:ticket:"): await admin_ticket_view(update, ctx)
+    elif data.startswith("adm:coupon_toggle:"): await admin_coupon_toggle(update, ctx)
 
 async def error_handler(update: object, ctx: ContextTypes.DEFAULT_TYPE):
     log.exception("Unhandled update error", exc_info=ctx.error)

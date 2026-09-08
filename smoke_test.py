@@ -23,6 +23,16 @@ with tempfile.TemporaryDirectory() as td:
     assert bot.stock_label(0) == '🔴 Out of stock'
     assert bot.stock_label(-1) == '🟢 Unlimited'
     assert bot.referral_requirement({'referrals_required': 3}) == 3
+    bot.store.data['coupons']['WELCOME10'] = {'code': 'WELCOME10', 'type': 'percent', 'value': 10, 'max_uses': 10, 'uses': 0, 'used_by': [], 'active': True, 'min_amount': 0}
+    coupon, error = bot.active_coupon('welcome10', 1001, 10)
+    assert coupon and not error and bot.coupon_discount(coupon, 10) == 1
+    reservation = bot.reserve_stock('p1', 1001)
+    assert reservation and bot.store.data['products']['p1']['stock'] == 1
+    bot.release_reservation({'reservation_id': reservation})
+    assert bot.store.data['products']['p1']['stock'] == 2
+    assert bot.admin_role(1001) == 'owner'
+    bot.notify_user(1001, 'test notification')
+    assert bot.store.data['notifications']['1001'][-1]['message'] == 'test notification'
     enabled, channels = bot.force_join_settings()
     assert enabled is True
     assert channels[0]['title'] == 'Demo channel'

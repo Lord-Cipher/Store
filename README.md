@@ -22,7 +22,13 @@ This version replaces the legacy mixed-language experience with an English-first
 - Products can require a configurable number of referrals before the buy button unlocks.
 - Admin user search by ID, username, or name.
 - JSON database backup download and validated restore upload.
-- Automated callback-button audit covering static buttons, dynamic prefixes, and reply-keyboard labels.
+- Automated callback-button audit covering static buttons, dynamic prefixes, and the inline-only interface.
+- Coupon codes with percentage or fixed discounts, limits, expiry dates, minimum totals, and free-checkout support.
+- Temporary stock reservations that expire automatically when payment is not completed.
+- Multi-file delivery using `file:TELEGRAM_FILE_ID||file:ANOTHER_FILE_ID`.
+- Support tickets with user inboxes, admin replies, close actions, and notifications.
+- Payment analytics, low-stock alerts, user notifications, and a richer user dashboard.
+- Admin roles for owner, manager, finance, support, and viewer access.
 - Admin control center with product toggles, analytics, button manager, settings, and broadcast.
 - Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
 
@@ -64,7 +70,15 @@ From the admin panel, choose **Products**, then **Add product** and send:
 Name | price | stock | description | delivery | category
 ```
 
-Use stock `-1` for unlimited stock. Delivery may be plain text or `file:TELEGRAM_FILE_ID`. Categories are created automatically when a new category name is entered. Set `referrals_required` to `0` for a normal product, or for example `3` to require three referrals before purchase. Existing five-field product lines remain supported.
+Use stock `-1` for unlimited stock. Delivery may be plain text, one file such as `file:TELEGRAM_FILE_ID`, or multiple files separated with `||`. Categories are created automatically when a new category name is entered. Set `referrals_required` to `0` for a normal product, or for example `3` to require three referrals before purchase. Existing five-field product lines remain supported.
+
+To create a coupon, open **Admin control center → Coupons → Create coupon** and send:
+
+```text
+CODE | percent/fixed | value | max_uses | expires_at | min_amount
+```
+
+For example, `WELCOME10 | percent | 10 | 100 | 2026-12-31T23:59:59+00:00 | 5` gives 100 users 10% off orders of at least 5. Use `-1` for unlimited uses and leave the expiry blank for no expiry.
 
 From **Purchase history**, users can check pending OxaPay payments and re-download previously delivered purchases. From the admin panel, **User search** accepts an ID, username, or name; **Backup** sends the current JSON database and **Restore** accepts a validated JSON backup file.
 
