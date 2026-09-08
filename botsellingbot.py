@@ -862,6 +862,8 @@ async def document_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data
+    if data in {"admin", "adm:products", "adm:settings"} or data.startswith("adm:product:"):
+        ctx.user_data.pop("admin_state", None)
     if data == "verify_join":
         await verify_join(update, ctx)
         return

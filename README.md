@@ -21,6 +21,7 @@ This version replaces the legacy mixed-language experience with an English-first
 - Products can require a configurable number of referrals before the buy button unlocks.
 - Admin user search by ID, username, or name.
 - JSON database backup download and validated restore upload.
+- Automated callback-button audit covering static buttons, dynamic prefixes, and reply-keyboard labels.
 - Admin control center with product toggles, analytics, button manager, settings, and broadcast.
 - Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
 
@@ -74,6 +75,8 @@ The bot records an order as pending when an invoice is created. It only marks th
 
 ```bash
 python3 -m py_compile botsellingbot.py
+python3 button_audit.py
+python3 smoke_test.py
 ```
 
 The official references used for the integration are [OxaPay Generate Invoice](https://docs.oxapay.com/api-reference/payment/generate-invoice) and [OxaPay Webhook](https://docs.oxapay.com/webhook).
