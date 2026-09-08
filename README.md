@@ -11,6 +11,7 @@ This version replaces the legacy mixed-language experience with an English-first
 - HMAC-SHA512 validation for OxaPay webhooks.
 - Fulfillment only after OxaPay reports `Paid`.
 - Configurable referral percentage and automatic referral balance rewards.
+- Optional force-join gate with blue channel buttons and a green **Verify membership** button.
 - Admin control center with product toggles, analytics, button manager, settings, and broadcast.
 - Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
 
@@ -28,7 +29,15 @@ pip install -r requirements.txt
 
 3. Set `PUBLIC_WEBHOOK_URL` to a public HTTPS origin. OxaPay cannot call localhost. The application exposes `POST /oxapay/webhook`; proxy that path to `WEBHOOK_PORT` if using Nginx, Caddy, or a platform load balancer.
 
-4. Start the bot:
+4. To require users to join one or more Telegram channels before using the shop, set `FORCE_JOIN_CHANNELS` using this format:
+
+```env
+FORCE_JOIN_CHANNELS=@my_channel|Official channel|https://t.me/my_channel
+```
+
+For multiple channels, separate entries with semicolons. The bot must be an administrator in each required channel so Telegram can verify membership. Users see a join UI and a green **Verify membership** button; the shop opens only after every channel is verified. The admin panel can turn the force-join feature on or off.
+
+5. Start the bot:
 
 ```bash
 set -a; . ./.env; set +a

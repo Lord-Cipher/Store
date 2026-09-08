@@ -56,6 +56,19 @@ PUBLIC_WEBHOOK_URL = os.getenv("PUBLIC_WEBHOOK_URL", "").rstrip("/")
 ADMIN_IDS = {int(x) for x in re.split(r"[,;\s]+", os.getenv("ADMIN_IDS", os.getenv("ADMIN_ID", "")).strip()) if x.isdigit()}
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/your_support").strip()
 
+
+def parse_force_join_channels(raw: str) -> list[dict[str, str]]:
+    """Parse channel definitions as channel_id|title|join_url entries separated by semicolons."""
+    channels = []
+    for item in raw.split(";"):
+        parts = [part.strip() for part in item.split("|", 2)]
+        if len(parts) == 3 and all(parts):
+            channels.append({"id": parts[0], "title": parts[1], "url": parts[2]})
+    return channels
+
+
+FORCE_JOIN_CHANNELS = parse_force_join_channels(os.getenv("FORCE_JOIN_CHANNELS", ""))
+
 if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is required")
 if not OXAPAY_API_KEY:
@@ -67,6 +80,8 @@ DEFAULT_SETTINGS = {
     "referral_rate": 5.0,
     "referrals_enabled": True,
     "purchases_enabled": True,
+    "force_join_enabled": bool(FORCE_JOIN_CHANNELS),
+    "force_join_channels": FORCE_JOIN_CHANNELS,
     "support_url": SUPPORT_URL,
     "main_buttons": {
         "shop": True, "history": True, "profile": True, "referrals": True,
@@ -195,6 +210,52 @@ def ensure_user(update: Update, start_param: Optional[str] = None) -> dict:
     return store.user(user.id)
 
 
+def force_join_settings() -> tuple[bool, list[dict[str, str]]]:
+    settings = store.settings()
+    channels = settings.get("force_join_channels", [])
+    return bool(settings.get("force_join_enabled", False) and channels), channels
+
+
+async def is_member_of_required_channels(bot, uid: int) -> tuple[bool, list[dict[str, str]]]:
+    enabled, channels = force_join_settings()
+    if not enabled or is_admin(uid):
+        return True, []
+    missing = []
+    for channel in channels:
+        try:
+            member = await bot.get_chat_member(channel["id"], uid)
+            if member.status not in {"creator", "administrator", "member"} and not (member.status == "restricted" and member.is_member):
+                missing.append(channel)
+        except Exception as exc:
+            log.warning("Force-join membership check failed for %s: %s", channel.get("id"), exc)
+            missing.append(channel)
+    return not missing, missing
+
+
+async def force_join_screen(update: Update, ctx: ContextTypes.DEFAULT_TYPE, missing: list[dict[str, str]] | None = None):
+    """Show the join gate with blue channel links and a green verification action."""
+    _, configured = force_join_settings()
+    channels = missing if missing is not None else configured
+    rows = [[InlineKeyboardButton(f"🔵 Join {channel['title']}", url=channel["url"])] for channel in channels]
+    rows.append([button("🟢 Verify membership", "verify_join")])
+    rows.append([button("🔵 Support", "support")])
+    text = ("🔐 <b>Join our community first</b>\n\n"
+            "Please join all required channels below, then press the green verification button to continue.")
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(rows))
+    else:
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(rows))
+
+
+async def require_membership(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> bool:
+    ok, missing = await is_member_of_required_channels(ctx.bot, update.effective_user.id)
+    if ok:
+        return True
+    await force_join_screen(update, ctx, missing)
+    return False
+
+
 def button(text: str, callback: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text, callback_data=callback)
 
@@ -249,12 +310,29 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if user.get("banned"):
         await update.message.reply_text("🚫 Your account is currently disabled.")
         return
+    if not await require_membership(update, ctx):
+        return
     await update.message.reply_text(home_text(), parse_mode=ParseMode.HTML, reply_markup=reply_keyboard(update.effective_user.id))
     await update.message.reply_text("Choose an option to continue:", reply_markup=home_keyboard(update.effective_user.id))
 
 async def home(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ensure_user(update)
+    if not await require_membership(update, ctx):
+        return
     await show(update, home_text(), home_keyboard(update.effective_user.id))
+
+
+async def verify_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ok, missing = await is_member_of_required_channels(ctx.bot, update.effective_user.id)
+    if not ok:
+        await force_join_screen(update, ctx, missing)
+        return
+    await update.callback_query.answer("Verified successfully!")
+    await update.callback_query.edit_message_text(
+        home_text(), parse_mode=ParseMode.HTML,
+        reply_markup=home_keyboard(update.effective_user.id),
+        disable_web_page_preview=True,
+    )
 
 async def shop(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not store.settings().get("purchases_enabled", True):
@@ -448,8 +526,19 @@ async def admin_button_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     s = store.settings()
-    text = f"⚙️ <b>Settings</b>\n\nPurchases: {status(s.get('purchases_enabled', True))}\nReferrals: {status(s.get('referrals_enabled', True))}\nReferral reward: <b>{s.get('referral_rate', 5)}%</b>"
-    kb = InlineKeyboardMarkup([[button(f"{status(s.get('purchases_enabled', True))} Purchases", "adm:setting:purchases_enabled")], [button(f"{status(s.get('referrals_enabled', True))} Referrals", "adm:setting:referrals_enabled")], [button("🟢 Change referral %", "adm:ref_rate")], [button("⬅️ Admin center", "admin")]])
+    force_enabled = bool(s.get("force_join_enabled", False) and s.get("force_join_channels"))
+    text = (f"⚙️ <b>Settings</b>\n\nPurchases: {status(s.get('purchases_enabled', True))}\n"
+            f"Referrals: {status(s.get('referrals_enabled', True))}\n"
+            f"Force join: {status(force_enabled)}\n"
+            f"Required channels: <b>{len(s.get('force_join_channels', []))}</b>\n"
+            f"Referral reward: <b>{s.get('referral_rate', 5)}%</b>")
+    kb = InlineKeyboardMarkup([
+        [button(f"{status(s.get('purchases_enabled', True))} Purchases", "adm:setting:purchases_enabled")],
+        [button(f"{status(s.get('referrals_enabled', True))} Referrals", "adm:setting:referrals_enabled")],
+        [button(f"{status(force_enabled)} Force join", "adm:setting:force_join_enabled")],
+        [button("🟢 Change referral %", "adm:ref_rate")],
+        [button("⬅️ Admin center", "admin")],
+    ])
     await show(update, text, kb)
 
 @admin_only
@@ -492,10 +581,19 @@ async def text_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await admin_text(update, ctx); return
     mapping = {"🛒 Browse shop": shop, "📚 Purchase history": history, "👤 My profile": profile, "🎁 Refer & earn": referrals, "🆘 Support": support, "ℹ️ About": about, "⚙️ Admin panel": admin}
     fn = mapping.get(t)
-    if fn: await fn(update, ctx)
+    if fn:
+        if t != "🆘 Support" and not is_admin(update.effective_user.id) and not await require_membership(update, ctx):
+            return
+        await fn(update, ctx)
 
 async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     data = update.callback_query.data
+    if data == "verify_join":
+        await verify_join(update, ctx)
+        return
+    if data != "support" and not is_admin(update.effective_user.id):
+        if not await require_membership(update, ctx):
+            return
     routes = {"home": home, "shop": shop, "history": history, "profile": profile, "referrals": referrals, "ref_copy": ref_copy, "support": support, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast}
     if data in routes: await routes[data](update, ctx); return
     if data.startswith("product:"): await product(update, ctx)

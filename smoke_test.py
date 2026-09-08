@@ -7,6 +7,7 @@ with tempfile.TemporaryDirectory() as td:
     os.environ['ADMIN_IDS'] = '1001'
     os.environ['DATA_FILE'] = str(Path(td) / 'data.json')
     os.environ['OXAPAY_MERCHANT_API_KEY'] = 'test-key'
+    os.environ['FORCE_JOIN_CHANNELS'] = '@demo|Demo channel|https://t.me/demo'
     import botsellingbot as bot
 
     assert bot.is_admin(1001)
@@ -18,4 +19,8 @@ with tempfile.TemporaryDirectory() as td:
     assert bot.store.settings()['main_buttons']['history'] is False
     assert bot.status(True) == '🟢 ON'
     assert bot.status(False) == '🔴 OFF'
+    enabled, channels = bot.force_join_settings()
+    assert enabled is True
+    assert channels[0]['title'] == 'Demo channel'
+    assert channels[0]['url'] == 'https://t.me/demo'
     print('smoke tests passed')
