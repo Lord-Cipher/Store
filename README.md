@@ -1,0 +1,58 @@
+# Modern Telegram Digital Shop Bot
+
+This version replaces the legacy mixed-language experience with an English-first, configuration-driven digital shop. The user flow is centered on browsing products, secure OxaPay checkout, automatic delivery, purchase history, profile, and referrals. The old deposit button has been removed.
+
+## Included
+
+- Consistent inline UI using blue navigation buttons, green action buttons, and red control/status buttons.
+- Product catalog with price, stock, description, active/inactive state, and delivery content.
+- Purchase history stored by user.
+- OxaPay invoice creation with `merchant_api_key` and `order_id`.
+- HMAC-SHA512 validation for OxaPay webhooks.
+- Fulfillment only after OxaPay reports `Paid`.
+- Configurable referral percentage and automatic referral balance rewards.
+- Admin control center with product toggles, analytics, button manager, settings, and broadcast.
+- Atomic JSON persistence suitable for a small bot; migrate to Firebase/Postgres when multi-instance scale is required.
+
+## Setup
+
+1. Create a virtual environment and install dependencies:
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+```
+
+2. Copy `.env.example` to `.env` and set `BOT_TOKEN`, `ADMIN_IDS`, and `OXAPAY_MERCHANT_API_KEY`. The provided merchant key should be entered there locally, not committed to GitHub. Since it was shared in chat, rotate it in OxaPay if it has been exposed anywhere else.
+
+3. Set `PUBLIC_WEBHOOK_URL` to a public HTTPS origin. OxaPay cannot call localhost. The application exposes `POST /oxapay/webhook`; proxy that path to `WEBHOOK_PORT` if using Nginx, Caddy, or a platform load balancer.
+
+4. Start the bot:
+
+```bash
+set -a; . ./.env; set +a
+python3 botsellingbot.py
+```
+
+## Product management
+
+From the admin panel, choose **Products**, then **Add product** and send:
+
+```text
+Name | price | stock | description | delivery
+```
+
+Use stock `-1` for unlimited stock. Delivery may be plain text or `file:TELEGRAM_FILE_ID`.
+
+## Payment safety
+
+The bot records an order as pending when an invoice is created. It only marks the order paid, decrements finite stock, adds the purchase-history record, sends delivery, and credits the referral reward after a valid OxaPay webhook with status `Paid`. Duplicate webhooks are idempotent.
+
+## Validation
+
+```bash
+python3 -m py_compile botsellingbot.py
+```
+
+The official references used for the integration are [OxaPay Generate Invoice](https://docs.oxapay.com/api-reference/payment/generate-invoice) and [OxaPay Webhook](https://docs.oxapay.com/webhook).

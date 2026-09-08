@@ -1,0 +1,6 @@
+.env
+bot_data.json
+*.tmp
+__pycache__/
+*.pyc
+.venv/
