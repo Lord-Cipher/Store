@@ -86,6 +86,8 @@ if not OXAPAY_API_KEY:
 DEFAULT_SETTINGS = {
     "shop_name": "Nova Store",
     "currency": "USD",
+    "display_currency": "USD",
+    "display_currency_position": "suffix",
     "payment_methods": {
         "automatic": {"oxapay": {"name": "OxaPay", "currency": "USD", "enabled": True}},
         "manual": {},
@@ -200,7 +202,10 @@ def esc(value: Any) -> str:
 
 
 def money(value: float) -> str:
-    return f"{float(value):,.2f} {store.settings().get('currency', 'USD')}"
+    settings = store.settings()
+    amount = f"{float(value):,.2f}"
+    currency = settings.get("display_currency", "USD") or "USD"
+    return f"{currency}{amount}" if settings.get("display_currency_position") == "prefix" else f"{amount} {currency}"
 
 
 def status(enabled: bool) -> str:
@@ -853,7 +858,7 @@ def admin_only(fn):
             return
         permission_map = {
             "admin_products": "products", "admin_product_detail": "products", "admin_add": "products", "admin_edit": "products", "admin_delete": "products", "admin_delete_confirm": "products", "admin_toggle": "products", "admin_coupons": "products", "admin_coupon_add": "products", "admin_coupon_toggle": "products",
-            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_force_join": "settings", "admin_payments": "settings", "admin_pay_add": "settings", "admin_pay_edit": "settings", "admin_pay_toggle": "settings", "admin_pay_delete": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
+            "admin_stats": "orders", "admin_tickets": "support", "admin_ticket_view": "support", "admin_ticket_reply": "support", "admin_ticket_close": "support", "admin_user_search": "users", "admin_user_detail": "users", "admin_backup": "backup", "admin_restore": "backup", "admin_settings": "settings", "admin_force_join": "settings", "admin_currency": "settings", "admin_payments": "settings", "admin_pay_add": "settings", "admin_pay_edit": "settings", "admin_pay_toggle": "settings", "admin_pay_delete": "settings", "admin_setting_toggle": "settings", "admin_ref_rate": "settings", "admin_buttons": "settings", "admin_button_toggle": "settings", "admin_broadcast": "broadcast",
         }
         permission = permission_map.get(fn.__name__)
         if permission and not can_admin(update.effective_user.id, permission):
@@ -1136,16 +1141,25 @@ async def admin_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"Referrals: {status(s.get('referrals_enabled', True))}\n"
             f"Force join: {status(force_enabled)}\n"
             f"Required channels: <b>{len(s.get('force_join_channels', []))}</b>\n"
-            f"Referral reward: <b>{s.get('referral_rate', 5)}%</b>")
+            f"Referral reward: <b>{s.get('referral_rate', 5)}%</b>\nDisplay currency: <b>{esc(s.get('display_currency', 'USD'))}</b> ({s.get('display_currency_position', 'suffix')})\nSettlement currency: <b>USD</b>")
     kb = InlineKeyboardMarkup([
         [button(f"{status(s.get('purchases_enabled', True))} Purchases", "adm:setting:purchases_enabled")],
         [button(f"{status(s.get('referrals_enabled', True))} Referrals", "adm:setting:referrals_enabled")],
         [button(f"{status(force_enabled)} Force join", "adm:setting:force_join_enabled")],
         [button("📢 Manage required channels", "adm:force_join")],
         [button("🟢 Change referral %", "adm:ref_rate")],
+        [button("💱 Change display currency", "adm:currency")],
         [button("⬅️ Admin center", "admin")],
     ])
     await show(update, text, kb)
+
+
+@admin_only
+async def admin_currency(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data["admin_state"] = "currency_display"
+    current = store.settings().get("display_currency", "USD")
+    position = store.settings().get("display_currency_position", "suffix")
+    await show(update, f"💱 <b>Display currency</b>\n\nCurrent: <code>{esc(current)}</code> ({position})\n\nSend: <code>symbol_or_code | prefix/suffix</code>\n\nExamples:\n<code>PRS | suffix</code> → 500.00 PRS\n<code>£ | prefix</code> → £1.00\n<code>₹ | suffix</code> → 30.00 ₹", InlineKeyboardMarkup([[button("Cancel", "adm:settings")]]))
 
 
 @admin_only
@@ -1170,7 +1184,13 @@ async def admin_broadcast(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def admin_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     state = ctx.user_data.pop("admin_state", None); text = update.message.text.strip()
-    if state == "payment_add" or (isinstance(state, str) and state.startswith("payment_edit:")):
+    if state == "currency_display":
+        parts = [part.strip() for part in text.split("|", 1)]
+        if len(parts) != 2 or not parts[0] or parts[1].lower() not in {"prefix", "suffix"}:
+            await update.message.reply_text("Use: symbol_or_code | prefix/suffix"); return
+        store.update_settings({"display_currency": parts[0][:12], "display_currency_position": parts[1].lower()})
+        await update.message.reply_text("✅ Display currency updated. OxaPay settlement remains USD.", reply_markup=InlineKeyboardMarkup([[button("⚙️ Settings", "adm:settings")]]))
+    elif state == "payment_add" or (isinstance(state, str) and state.startswith("payment_edit:")):
         parts = [part.strip() for part in text.split("|", 2)]
         if len(parts) != 3 or not parts[0] or not parts[1] or not parts[2]:
             await update.message.reply_text("Use: code | display name | instructions"); return
@@ -1312,7 +1332,7 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data != "support" and not is_admin(update.effective_user.id):
         if not await require_membership(update, ctx):
             return
-    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:payments": admin_payments, "adm:pay_add": admin_pay_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:force_join": admin_force_join, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
+    routes = {"home": home, "shop": shop, "history": history, "profile": profile, "notifications": notifications, "referrals": referrals, "ref_copy": ref_copy, "support": support, "tickets": tickets, "ticket:new": ticket_new, "about": about, "admin": admin, "adm:products": admin_products, "adm:add": admin_add, "adm:stats": admin_stats, "adm:payments": admin_payments, "adm:pay_add": admin_pay_add, "adm:tickets": admin_tickets, "adm:roles": admin_roles, "adm:buttons": admin_buttons, "adm:settings": admin_settings, "adm:force_join": admin_force_join, "adm:currency": admin_currency, "adm:ref_rate": admin_ref_rate, "adm:broadcast": admin_broadcast, "adm:user_search": admin_user_search, "adm:backup": admin_backup, "adm:restore": admin_restore}
     if data in routes: await routes[data](update, ctx); return
     if data.startswith("category:"): await category(update, ctx)
     if data.startswith("product:"): await product(update, ctx)

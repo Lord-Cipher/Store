@@ -33,6 +33,10 @@ with tempfile.TemporaryDirectory() as td:
     assert bot.store.data['products']['p1']['stock'] == 2
     assert bot.admin_role(1001) == 'owner'
     assert bot.store.settings()['currency'] == 'USD'
+    bot.store.update_settings({'display_currency': 'PRS', 'display_currency_position': 'suffix'})
+    assert bot.money(500) == '500.00 PRS'
+    bot.store.update_settings({'display_currency': '£', 'display_currency_position': 'prefix'})
+    assert bot.money(1) == '£1.00'
     assert any(code == 'oxapay' for _, code, _ in bot.enabled_payment_methods())
     bot.store.data['payment_methods']['manual']['demo'] = {'name': 'Demo Manual', 'instructions': 'Send proof', 'enabled': False}
     assert not any(code == 'demo' for _, code, _ in bot.enabled_payment_methods())
