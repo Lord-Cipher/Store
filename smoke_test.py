@@ -19,6 +19,10 @@ with tempfile.TemporaryDirectory() as td:
     assert bot.store.settings()['main_buttons']['history'] is False
     assert bot.status(True) == '🟢 ON'
     assert bot.status(False) == '🔴 OFF'
+    assert bot.stock_label(100) == '🟢 100 available'
+    assert bot.stock_label(0) == '🔴 Out of stock'
+    assert bot.stock_label(-1) == '🟢 Unlimited'
+    assert bot.referral_requirement({'referrals_required': 3}) == 3
     enabled, channels = bot.force_join_settings()
     assert enabled is True
     assert channels[0]['title'] == 'Demo channel'
