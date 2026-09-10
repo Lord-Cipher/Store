@@ -31,6 +31,8 @@ from functools import wraps
 from pathlib import Path
 from typing import Any, Optional
 
+BASE_DIR = Path(__file__).resolve().parent
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
 from telegram.ext import (
@@ -45,14 +47,17 @@ except ImportError:  # pragma: no cover
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # Hosting panels often start scripts from a different working directory.
+    # Always load the .env file next to this script, then allow host variables
+    # to take precedence when they are already configured.
+    load_dotenv(dotenv_path=BASE_DIR / ".env", override=False)
+    load_dotenv(override=False)
 except ImportError:  # pragma: no cover
     pass
 
 logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.INFO)
 log = logging.getLogger("modern-shop")
 
-BASE_DIR = Path(__file__).resolve().parent
 DATA_FILE = Path(os.getenv("DATA_FILE", str(BASE_DIR / "bot_data.json")))
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 OXAPAY_API_KEY = os.getenv("OXAPAY_MERCHANT_API_KEY", "").strip()
