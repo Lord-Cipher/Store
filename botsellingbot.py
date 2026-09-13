@@ -47,8 +47,8 @@ from telegram.constants import ParseMode
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  CONFIG
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-BOT_TOKEN         = os.environ.get("BOT_TOKEN", "8974503340:AAEwHcvDB5D4N_pegwFik-jklQrMwqYi4bQ")
-ADMIN_IDS_RAW     = os.environ.get("ADMIN_ID", "8065173971")
+BOT_TOKEN         = os.environ.get("BOT_TOKEN", "")
+ADMIN_IDS_RAW     = os.environ.get("ADMIN_ID", os.environ.get("ADMIN_IDS", ""))
 ADMIN_USERNAME    = os.environ.get("ADMIN_USERNAME", "@lord_ciph3r")
 
 # Embedded Firebase Web & Cloud Configuration
@@ -106,44 +106,44 @@ def _find_button_style(text: str) -> str:
     t = text.lower()
     
     # ⚪ Navigation:
-    if any(k in t for k in ["back to", "back", "ব্যাকে", "পেছনে", "পিছনে", "home", "হোম", "menu", "মেনু", "⬅️", "🏠"]):
+    if any(k in t for k in ["back to", "back", "English", "English", "English", "home", "English", "menu", "Menu", "⬅️", "🏠"]):
         return "nav"
         
     # 🔴 Danger / Reject / Cancel / Delete:
     if any(k in t for k in [
-        "cancel", "বাতিল", "reject", "রিজেক্ট", "remove", "রিমুভ", "delete", "ডিলিট",
-        "ban", "ব্যান", "kick", "close panel", "প্যানেল বন্ধ", "reset", "রিসেট", "off", "নিষ্ক্রিয়",
-        "সব ব্যালেন্স ০", "⛔", "❌", "🗑️"
+        "cancel", "Cancel", "reject", "Reject", "remove", "Remove", "delete", "Delete",
+        "ban", "English", "kick", "close panel", "Close panel", "reset", "English", "off", "Off",
+        "All Balance English", "⛔", "❌", "🗑️"
     ]):
         return "danger"
         
     # 🟡 Warning & Withdraw:
     if any(k in t for k in [
-        "withdraw", "উইথড্র", "উইথড্রয়াল", "pending", "পেন্ডিং", "shortage", "ঘাটতি", "অপেক্ষমান", "⏳", "⚠️"
+        "withdraw", "English", "English", "pending", "English", "shortage", "English", "Pending", "⏳", "⚠️"
     ]):
         return "warning"
         
     # 🟣 Admin & Settings & Support:
     if any(k in t for k in [
-        "admin", "এডমিন", "owner", "মালিক", "manager", "ম্যানেজার", "role", "রোল",
-        "setting", "সেটিংস", "broadcast", "ব্রডকাস্ট", "btnmgr", "বাটন কন্ট্রোল",
-        "button manager", "support", "সাপোর্ট", "👑", "⚙️", "🎛️", "🆘"
+        "admin", "Admin", "owner", "English", "manager", "English", "role", "English",
+        "setting", "Settings", "broadcast", "English", "btnmgr", "Button manager",
+        "button manager", "support", "Support", "👑", "⚙️", "🎛️", "🆘"
     ]):
         return "admin"
         
     # 🟠 Shop & Products:
     if any(k in t for k in [
-        "buy product", "my product", "shop", "শপ", "product", "পণ্য", "প্রোডাক্ট", "script", "স্ক্রিপ্ট",
-        "category", "ক্যাটাগরি", "stock", "স্টক", "আমার পণ্য", "📦", "🛒", "📁"
+        "buy product", "my product", "shop", "Shop", "product", "Product", "Product", "script", "English",
+        "category", "Category", "stock", "Stock", "My products", "📦", "🛒", "📁"
     ]):
         return "shop"
 
     # 🟢 Success & Deposit & Payment:
     if any(k in t for k in [
-        "approve", "অ্যাপ্রুভ", "অনুমোদন", "confirm", "নিশ্চিত", "submit", "জমা দিন",
-        "deposit", "ডিপোজিট", "টাকা জমা", "buy now", "কিনুন", "add", "যুক্ত", "নতুন",
-        "earn", "ইনকাম", "active", "অনলাইন", "on", "সক্রিয়", "চালু", "verify", "ভেরিফাই",
-        "done", "সম্পন্ন", "pay", "পেমেন্ট", "বিকাশ", "নগদ", "রকেট", "bkash", "nagad", "rocket", "binance",
+        "approve", "Approve", "Approve", "confirm", "Confirm", "submit", "Submit",
+        "deposit", "Deposit", "USD English", "buy now", "Buy", "add", "English", "New",
+        "earn", "English", "active", "Online", "on", "English", "On", "verify", "Verify",
+        "done", "Completed", "pay", "Payment", "Payment", "Payment", "Payment", "bkash", "nagad", "rocket", "binance",
         "✅", "🟢", "💰", "💎"
     ]):
         return "success"
@@ -167,19 +167,22 @@ def strip_button_balls(text: str) -> str:
     return text_s
 
 def colorize_button_text(text: str, color: str = None) -> str:
-    """Clean button text without circle/ball badges."""
-    return strip_button_balls(text)
+    """Apply consistent red, blue, or green visual status badges to buttons."""
+    clean = strip_button_balls(text)
+    style = color or _find_button_style(clean)
+    badge = {"danger": "🔴", "warning": "🔴", "success": "🟢", "shop": "🟢", "nav": "🔵", "admin": "🔵", "secondary": "🔵"}.get(style, "🔵")
+    return f"{badge} {clean}" if clean else badge
 
 class InlineKeyboardButton(_OrigInlineKeyboardButton):
-    """Clean Telegram inline button without colored circle/ball badges."""
+    """Inline button with a red, blue, or green visual status badge."""
     def __init__(self, text: str, *args, color: str = None, **kwargs):
-        styled = strip_button_balls(text)
+        styled = colorize_button_text(text, color)
         super().__init__(styled, *args, **kwargs)
 
 class KeyboardButton(_OrigKeyboardButton):
-    """Clean Telegram persistent menu keyboard button without colored circle/ball badges."""
+    """Persistent menu button with a red, blue, or green visual status badge."""
     def __init__(self, text: str, *args, color: str = None, **kwargs):
-        styled = strip_button_balls(text)
+        styled = colorize_button_text(text, color)
         super().__init__(styled, *args, **kwargs)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -547,10 +550,10 @@ def init_defaults():
             "welcome_text":       "𝙒𝙀𝙇𝘾𝙊𝙈𝙀 𝙏𝙊 𝙋𝙍𝙀𝙈𝙄𝙐𝙈 𝙎𝙃𝙊𝙋 𝘽𝙊𝙏",
             "currency_symbol":    "$",
             "currency_name":      "USD",
-            "local_currency":     "BDT",
-            "exchange_rate":      125,          # 1 USD = 125 BDT
+            "local_currency":     "USD",
+            "exchange_rate":      1,            # USD-only pricing
             "referral_pct":       5.0,          # 5% deposit commission
-            "referral_bonus_bdt": 10.0,         # 10 BDT Instant Signup Bonus per Referral
+            "referral_bonus_bdt": 10.0,         # 10 USD Instant Signup Bonus per Referral
             "deposit_open":       True,         # DEFAULT: OPEN
             "withdraw_open":      True,
             "min_deposit":        1.0,
@@ -594,9 +597,9 @@ def init_defaults():
 
     if fb_get("check_data_links") is None:
         fb_set("check_data_links", {
-            "link_1": {"title": "🌐 বট হোস্টিং প্ল্যাটফর্ম", "url": "https://t.me/PayHosting_bot?start=7831629041"},
-            "link_2": {"title": "📺 বট রান করার টিউটোরিয়াল", "url": "https://youtube.com"},
-            "link_3": {"title": "💬 অফিসিয়াল সাপোর্ট গ্রুপ", "url": "https://t.me/cipher_tech team"},
+            "link_1": {"title": "🌐 Bot English English", "url": "https://t.me/PayHosting_bot?start=7831629041"},
+            "link_2": {"title": "📺 Bot English English English", "url": "https://youtube.com"},
+            "link_3": {"title": "💬 English Support Group", "url": "https://t.me/cipher_tech team"},
         })
 
     if fb_get("force_join_channels") is None:
@@ -717,13 +720,13 @@ def ensure_user(update: Update) -> dict:
                             await bot.send_message(
                                 chat_id=referrer,
                                 text=(
-                                    f"🎉 <b>অভিনন্দন! নতুন রেফারেল যুক্ত হয়েছে!</b>\n"
+                                    f"🎉 <b>English! New Referral English has been!</b>\n"
                                     f"{divider()}\n"
-                                    f"👤 নতুন মেম্বার: {user_name_esc}\n"
-                                    f"🎁 <b>রেফারেল বোনাস:</b> +{int(ref_bonus_bdt)} টাকা (${bonus_usd:.2f})\n"
-                                    f"💳 <b>আপনার বর্তমান ওয়ালেট:</b> ${new_bal:.2f} (~{int(new_bal*rate)} BDT)\n"
+                                    f"👤 New English: {user_name_esc}\n"
+                                    f"🎁 <b>Referral EnglishnotEnglish:</b> +{int(ref_bonus_bdt)} USD (${bonus_usd:.2f})\n"
+                                    f"💳 <b>Your Current English:</b> ${new_bal:.2f} (~{int(new_bal*rate)} USD)\n"
                                     f"{divider()}\n"
-                                    f"🚀 বন্ধুদের আরও বেশি ইনভাইট করে আনলিমিটেড বোনাস জিতে নিন!"
+                                    f"🚀 ClosedEnglish More English English and English EnglishnotEnglish English English!"
                                 ),
                                 parse_mode=ParseMode.HTML
                             )
@@ -920,13 +923,13 @@ def get_payment_methods() -> dict:
     return methods or {}
 
 def parse_clean_amount(text: str) -> float:
-    """Safely extracts a numeric amount handling Bengali digits (০-৯) and English numbers and currency symbols."""
-    bengali_digits = "০১২৩৪৫৬৭৮৯"
+    """Safely extracts a numeric amount handling Bengali digits (English-English) and English numbers and currency symbols."""
+    bengali_digits = "English"
     s = str(text).strip()
     for i, bd in enumerate(bengali_digits):
         s = s.replace(bd, str(i))
     # Remove common currency terms
-    for w in ["tk", "bdt", "usd", "$", "টাকা", "টাক", "ট"]:
+    for w in ["tk", "bdt", "usd", "$", "USD", "English", "English"]:
         s = re.sub(re.escape(w), "", s, flags=re.IGNORECASE)
     # Find decimal or integer number
     m = re.search(r"\d+(?:\.\d+)?", s.replace(",", ""))
@@ -935,13 +938,8 @@ def parse_clean_amount(text: str) -> float:
     raise ValueError(f"No valid numeric amount found in: '{text}'")
 
 def format_amount(amount: float, settings: dict = None) -> str:
-    if settings is None:
-        settings = get_settings()
-    sym = settings.get("currency_symbol", "$")
-    rate = settings.get("exchange_rate", 125)
-    local = settings.get("local_currency", "BDT")
-    local_amt = round(amount * rate)
-    return f"{sym}{amount:.2f} ({local_amt:,} {local})"
+    """Format all user-facing prices as US dollars only."""
+    return f"${float(amount):,.2f}"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  MAIN MENU KEYBOARD
@@ -1192,17 +1190,17 @@ async def show_product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     files = prod.get("files", [])
     if files:
-        text += f"📁 {sb('Files:')} মোট {len(files)} টি স্ক্রিপ্ট ফাইল (Auto-Delivery ⚡)\n"
+        text += f"📁 {sb('Files:')} Total {len(files)}  English File (Auto-Delivery ⚡)\n"
     elif prod.get("is_file") or prod.get("file_name"):
         fname = prod.get("file_name", "Script / Bot Archive")
         text += f"📁 {sb('File:')} <code>{fname}</code> (Instant Auto-Delivery ⚡)\n"
 
     demo_link = prod.get("demo_link")
     if demo_link:
-        text += f"🤖 {sb('Demo Bot:')} সংযুক্ত আছে (নিচের বাটনে ওপেন করুন)\n"
+        text += f"🤖 {sb('Demo Bot:')} is attached (open using the button below)\n"
 
     if prod.get("run_guide"):
-        text += f"🛠️ {sb('Setup & Run Guide:')} রান করার নিয়ম ও প্রয়োজনীয় কমান্ড সংযুক্ত ✅\n"
+        text += f"🛠️ {sb('Setup & Run Guide:')} English English English English Required English English ✅\n"
 
     if prod.get("description"):
         text += f"📝 {sb('Description:')}\n{prod.get('description')}\n"
@@ -1212,10 +1210,10 @@ async def show_product(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Demo bot link button if available (clean button, never raw link in text!)
     if demo_link:
         durl = demo_link if demo_link.startswith("http") else (f"https://t.me/{demo_link[1:]}" if demo_link.startswith("@") else f"https://{demo_link}")
-        buttons.append([InlineKeyboardButton("🌐 ওপেন লিংক / Open Demo ↗️", url=durl)])
+        buttons.append([InlineKeyboardButton("🌐 English Link / Open Demo ↗️", url=durl)])
 
     if prod.get("run_guide"):
-        buttons.append([InlineKeyboardButton("📖 রান করার নিয়ম ও কমান্ডসমূহ", callback_data=f"guide_{cat_id}_{pid}")])
+        buttons.append([InlineKeyboardButton("📖 English English English English English", callback_data=f"guide_{cat_id}_{pid}")])
 
     if stock > 0:
         buttons.append([InlineKeyboardButton(
@@ -1296,18 +1294,18 @@ async def guide_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     parts = query.data.split("_", 2)
     cat_id, pid = parts[1], parts[2]
     prod = fb_get(f"categories/{cat_id}/products/{pid}", {})
-    guide = prod.get("run_guide", "কোনো রান করার গাইড বা কমান্ড পাওয়া যায়নি।")
+    guide = prod.get("run_guide", "any English English English English English English English।")
     pname = prod.get("name", "Product")
 
     text = (
-        f"🛠️ <b>{pname} — রান করার নিয়ম ও প্রয়োজনীয় কমান্ডসমূহ</b>\n"
+        f"🛠️ <b>{pname} — English English English English Required English</b>\n"
         f"{divider()}\n"
         f"<code>{guide}</code>\n"
         f"{divider()}\n"
-        f"💡 <i>উপরের কমান্ডগুলো একে একে টার্মিনাল/সার্ভারে রান করুন। কোনো সমস্যা হলে অফিসিয়াল সাপোর্টে যোগাযোগ করুন।</i>"
+        f"💡 <i>above English English English EnglishnotEnglish/English English English। any English English English SupportEnglish AddEnglishAdd।</i>"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️ ব্যাকে যান", callback_data=f"prod_{cat_id}_{pid}")]
+        [InlineKeyboardButton("⬅️ English English", callback_data=f"prod_{cat_id}_{pid}")]
     ])
     if query.message.photo:
         await query.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
@@ -1428,9 +1426,9 @@ async def confirm_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if files_list:
         success_text += (
-            f"🎁 {bold('আপনার স্ক্রিপ্ট / ফাইলসমূহ নিচে সরবরাহ করা হচ্ছে ⬇️')}\n"
-            f"📁 মোট ফাইল: <b>{len(files_list)}</b> টি\n"
-            f"⚡ <i>ফাইলগুলো নিচে পাঠানো হচ্ছে। যেকোনো সময় 'MY PRODUCT' থেকে আবার ডাউনলোড করতে পারবেন।</i>"
+            f"🎁 {bold('Your English / FileEnglish below English English English ⬇️')}\n"
+            f"📁 Total File: <b>{len(files_list)}</b> \n"
+            f"⚡ <i>FileEnglish below sent English। any time 'MY PRODUCT' from English Download English English।</i>"
         )
     elif file_id:
         success_text += (
@@ -1464,7 +1462,7 @@ async def confirm_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         document=fid,
                         filename=fname,
                         caption=(
-                            f"🎁 <b>{prod.get('name')}</b> (ফাইল {idx}/{len(files_list)})\n"
+                            f"🎁 <b>{prod.get('name')}</b> (File {idx}/{len(files_list)})\n"
                             f"📁 <code>{fname}</code>\n"
                             f"⚡ Instant Auto-Delivery"
                         ),
@@ -1493,11 +1491,11 @@ async def confirm_buy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ctx.bot.send_message(
             chat_id=uid,
             text=(
-                f"🛠️ <b>{prod.get('name')} — রান করার নিয়মাবলী ও কমান্ডসমূহ:</b>\n"
+                f"🛠️ <b>{prod.get('name')} — Run instructions and commands:</b>\n"
                 f"{divider()}\n"
                 f"<code>{prod.get('run_guide')}</code>\n"
                 f"{divider()}\n"
-                f"💡 <i>উপরের কমান্ডগুলো কপি করে আপনার সার্ভার বা টার্মিনালে একে একে রান করুন।</i>"
+                f"💡 <i>above English English and Your English English EnglishnotEnglish English English English English।</i>"
             ),
             parse_mode=ParseMode.HTML
         )
@@ -1650,7 +1648,7 @@ async def download_purchased_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE
                 except Exception as e:
                     logger.error(f"Error re-sending multi-file {fid}: {e}")
         if sent_count > 0:
-            await query.answer(f"✅ {sent_count} টি ফাইল সফলভাবে পাঠানো হয়েছে!", show_alert=True)
+            await query.answer(f"✅ {sent_count}  File sent successfully!", show_alert=True)
             return
 
     file_id = purch.get("file_id")
@@ -1704,31 +1702,31 @@ async def refer_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = (
         f"💎 {bold('𝐏𝐑𝐄𝐌𝐈𝐔𝐌 𝐑𝐄𝐅𝐄𝐑𝐑𝐀𝐋 & 𝐄𝐀𝐑𝐍 𝐏𝐑𝐎𝐆𝐑𝐀𝐌')}\n"
         f"{divider()}\n"
-        f"🎁 <b>প্রতিটি সফল রেফারেলে ইনস্ট্যান্ট {int(ref_bonus_bdt)} টাকা নিশ্চিত বোনাস!</b>\n\n"
-        f"🔥 আপনার বন্ধুদের আমাদের শপ বটে ইনভাইট করুন। আপনার শেয়ার করা লিংকের মাধ্যমে যেকোনো নতুন মেম্বার বটে স্টার্ট দিলেই আপনি সাথে সাথে পাবেন <b>{int(ref_bonus_bdt)} টাকা ক্যাশ বোনাস</b>!\n"
-        f"⚡ এছাড়াও আপনার রেফারেল মেম্বারদের প্রতিটি ডিপোজিটে লাইফটাইম পাবেন <b>{ref_pct}% ডিপোজিট কমিশন</b>!\n\n"
-        f"📊 <b>আপনার ব্যক্তিগত রেফারেল স্ট্যাটিস্টিকস:</b>\n"
+        f"🎁 <b>Each successful referral Instant {int(ref_bonus_bdt)} USD guaranteed bonus!</b>\n\n"
+        f"🔥 Your ClosedEnglish English Shop BotEnglish English English। Your Share English LinkEnglish English any New English BotEnglish English English You with with English <b>{int(ref_bonus_bdt)} USD English EnglishnotEnglish</b>!\n"
+        f"⚡ English Your Referral English Each DepositEnglish English English <b>{ref_pct}% deposit commission</b>!\n\n"
+        f"📊 <b>Your referral statistics:</b>\n"
         f"{mini_divider()}\n"
-        f"👥 <b>মোট রেফারেল সদস্য:</b> <code>{referrals}</code> জন\n"
-        f"🟢 <b>ভেরিফাইড ইউজার:</b> <code>{verified}</code> জন\n"
-        f"💰 <b>মোট রেফারেল উপার্জন:</b> {bold(format_amount(earned, s))}\n"
-        f"💳 <b>বর্তমান ওয়ালেট ব্যালেন্স:</b> {bold(format_amount(bal, s))}\n"
+        f"👥 <b>Total referrals:</b> <code>{referrals}</code> users\n"
+        f"🟢 <b>Verified users:</b> <code>{verified}</code> users\n"
+        f"💰 <b>Total referral earnings:</b> {bold(format_amount(earned, s))}\n"
+        f"💳 <b>Current wallet balance:</b> {bold(format_amount(bal, s))}\n"
         f"{mini_divider()}\n\n"
-        f"🔗 <b>আপনার পার্সোনাল রেফারেল লিংক (কপি করতে ট্যাপ করুন):</b>\n"
+        f"🔗 <b>Your personal referral link (tap to copy):</b>\n"
         f"<code>{ref_link}</code>\n\n"
-        f"💡 <i>নিচের বাটনে ক্লিক করে সরাসরি বন্ধুদের ইনভাইট করুন অথবা লিংক কপি করে যেকোনো গ্রুপে শেয়ার করুন!</i>"
+        f"💡 <i>below ButtonEnglish Click and directly Invite friends or Link English and any GroupEnglish Share English!</i>"
     )
 
     import urllib.parse
     bot_n = s.get("bot_name", "JAMES 💎")
-    share_text = f"🔥 {bot_n} — সেরা টেলিগ্রাম বট ও স্ক্রিপ্ট শপ!\n🎁 আমার রেফারেল লিংকে জয়েন করুন এবং বিশেষ অফার উপভোগ করুন:\n{ref_link}"
+    share_text = f"🔥 {bot_n} — English English Bot English English Shop!\n🎁 My Referral linkEnglish Join English and EnglishEnd English English English:\n{ref_link}"
     tg_share_url = f"https://t.me/share/url?url={urllib.parse.quote(ref_link)}&text={urllib.parse.quote(share_text)}"
 
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 বন্ধুদের ইনভাইট করুন (Invite Friends)", url=tg_share_url)],
-        [InlineKeyboardButton("📋 লিংক কপি করুন (Copy Link)", callback_data="ref_copy_link"),
-         InlineKeyboardButton("💸 উপার্জন ক্যাশআউট", callback_data="user_withdraw")],
-        [InlineKeyboardButton("🏠 হোম মেনু", callback_data="home")]
+        [InlineKeyboardButton("🚀 Invite friends (Invite Friends)", url=tg_share_url)],
+        [InlineKeyboardButton("📋 Copy link (Copy Link)", callback_data="ref_copy_link"),
+         InlineKeyboardButton("💸 Cash out earnings", callback_data="user_withdraw")],
+        [InlineKeyboardButton("🏠 Home menu", callback_data="home")]
     ])
 
     if update.callback_query:
@@ -1742,11 +1740,11 @@ async def ref_copy_link_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     uid = query.from_user.id
     bot_info = await ctx.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={uid}"
-    await query.answer("📋 রেফারেল লিংক নিচে তৈরি করা হয়েছে!", show_alert=False)
+    await query.answer("📋 Referral link below Create English has been!", show_alert=False)
     await query.message.reply_text(
-        f"📋 <b>আপনার রেফারেল লিংক (ট্যাপ করে কপি করুন):</b>\n\n"
+        f"📋 <b>Your Referral link (Tap and English English):</b>\n\n"
         f"<code>{ref_link}</code>\n\n"
-        f"👆 <i>লিংকটির ওপর ট্যাপ করলেই কপি হয়ে যাবে! বন্ধুদের ইনভাইট করে প্রতি রেফারেলে ১০ টাকা করে বোনাস নিন।</i>",
+        f"👆 <i>LinkEnglish English Tap English English isEnglish English! ClosedEnglish English and English ReferralEnglish English USD and EnglishnotEnglish English।</i>",
         parse_mode=ParseMode.HTML
     )
 
@@ -1783,7 +1781,7 @@ async def deposit_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     sym = s.get("currency_symbol", "$")
     rate = s.get("exchange_rate", 125)
-    local = s.get("local_currency", "BDT")
+    local = s.get("local_currency", "USD")
     min_dep = s.get("min_deposit", 1.0)
     min_local = int(min_dep * rate)
 
@@ -1792,7 +1790,7 @@ async def deposit_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"{divider()}\n"
         f"💰 <b>{sb('Min Deposit:')}</b> {sym}{min_dep:.2f} ({min_local} {local})\n"
         f"📈 <b>{sb('Rate:')}</b> 1 {s.get('currency_name','USD')} = {rate} {local}\n"
-        f"⚡ <i>এডমিন ভেরিফাই করার সাথে সাথেই আপনার একাউন্টে ব্যালেন্স যুক্ত হয়ে যাবে।</i>\n"
+        f"⚡ <i>Admin Verify English with withEnglish Your English Balance English isEnglish English।</i>\n"
         f"{divider()}\n"
         f"📌 <b>{sb('Select Payment Method:')}</b>"
     )
@@ -1821,24 +1819,24 @@ async def deposit_method_chosen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pm = methods.get(method_key, {})
     s = get_settings()
     rate = s.get("exchange_rate", 125)
-    local = s.get("local_currency","BDT")
+    local = s.get("local_currency","USD")
     min_dep = s.get("min_deposit", 1.0)
     min_local = int(min_dep * rate)
     sym = s.get("currency_symbol", "$")
 
     number = pm.get("number") or pm.get("address","")
-    num_display = f"<code>{number}</code>" if number else "<i>(নাম্বার সেট করা হয়নি)</i>"
+    num_display = f"<code>{number}</code>" if number else "<i>(NameEnglish not set)</i>"
 
     text = (
-        f"💳 <b>{pm.get('name','?')} ডিপোজিট</b>\n"
+        f"💳 <b>{pm.get('name','?')} Deposit</b>\n"
         f"{divider()}\n"
         f"📱 <b>Send Money To:</b> {num_display}\n"
-        f"<i>(নাম্বারের ওপর ট্যাপ করলেই কপি হয়ে যাবে)</i>\n\n"
-        f"💰 <b>মিনিমাম ডিপোজিট:</b> {min_local} {local} ({sym}{min_dep:.2f})\n"
-        f"📊 <b>রেট:</b> 1 {s.get('currency_name','USD')} = {rate} {local}\n"
+        f"<i>(NameEnglish English Tap English English isEnglish English)</i>\n\n"
+        f"💰 <b>Minimum deposit:</b> {min_local} {local} ({sym}{min_dep:.2f})\n"
+        f"📊 <b>Rate:</b> 1 {s.get('currency_name','USD')} = {rate} {local}\n"
         f"{divider()}\n"
-        f"✏️ <b>কত টাকা ডিপোজিট করতে চান তা লিখুন:</b>\n"
-        f"<i>(যেমন: 500 বা ৫০০)</i>"
+        f"✏️ <b>Enter the deposit amount:</b>\n"
+        f"<i>(English: 500 English English)</i>"
     )
     ctx.user_data["dep_method"] = method_key
     ctx.user_data["dep_number"] = number
@@ -1848,7 +1846,7 @@ async def deposit_method_chosen(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await safe_edit_text(query, 
         text, parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ " + sb("Cancel / বাতিল"), callback_data="deposit")
+            InlineKeyboardButton("❌ " + sb("Cancel / Cancel"), callback_data="deposit")
         ]]))
 
 async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1858,17 +1856,17 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     s = get_settings()
 
     # Cancel command or text
-    if text_raw.lower() in ["cancel", "বাতিল", "exit", "/cancel", "back", "❌ cancel", "❌ বাতিল"]:
+    if text_raw.lower() in ["cancel", "Cancel", "exit", "/cancel", "back", "❌ cancel", "❌ Cancel"]:
         ctx.user_data["awaiting"] = None
         await update.message.reply_text(
-            "❌ ডিপোজিট প্রক্রিয়া বাতিল করা হয়েছে।",
+            "❌ Deposit cancelled।",
             reply_markup=main_menu_keyboard(uid)
         )
         return
 
     if awaiting == "deposit_amount":
         rate = s.get("exchange_rate", 125)
-        local = s.get("local_currency","BDT")
+        local = s.get("local_currency","USD")
         min_dep = s.get("min_deposit", 1.0)
         min_local = int(min_dep * rate)
         sym = s.get("currency_symbol","$")
@@ -1879,9 +1877,9 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 raise ValueError("Amount must be positive")
             if amount_local < min_local:
                 await update.message.reply_text(
-                    f"❌ সর্বনিম্ন ডিপোজিট <b>{min_local} {local}</b> ({sym}{min_dep:.2f})।\n"
-                    f"অনুগ্রহ করে কমপক্ষে {min_local} {local} বা তার বেশি পরিমাণ লিখুন:\n"
-                    f"<i>(বাতিল করতে 'cancel' লিখুন)</i>",
+                    f"❌ Minimum deposit <b>{min_local} {local}</b> ({sym}{min_dep:.2f})।\n"
+                    f"Please English {min_local} {local} English English English Amount Enter:\n"
+                    f"<i>(Cancel English 'cancel' Enter)</i>",
                     parse_mode=ParseMode.HTML
                 )
                 return
@@ -1896,18 +1894,18 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             num_info = f" ({dep_num})" if dep_num else ""
 
             await update.message.reply_text(
-                f"✅ <b>পরিমাণ নিশ্চিত:</b> {amount_local:,.2f} {local} = {sym}{amount_usd:.4f}\n"
-                f"💳 <b>মেথড:</b> {dep_name}{num_info}\n\n"
-                f"📝 <b>এবার আপনার Transaction ID (TxID) অথবা পেমেন্টের স্ক্রিনশট (Screenshot) পাঠান:</b>\n"
-                f"<i>(বিকাশ/নগদ/রকেটের TrxID মেসেজ হিসেবে লিখে পাঠান অথবা রিসিটের ছবি তুলে পাঠান)</i>\n"
-                f"<i>(বাতিল করতে 'cancel' লিখুন)</i>",
+                f"✅ <b>Amount confirmed:</b> {amount_local:,.2f} {local} = {sym}{amount_usd:.4f}\n"
+                f"💳 <b>Method:</b> {dep_name}{num_info}\n\n"
+                f"📝 <b>Send your transaction ID or payment screenshot:</b>\n"
+                f"<i>(Payment/Payment/PaymentEnglish TrxID English English English Send or English English English Send)</i>\n"
+                f"<i>(Cancel English 'cancel' Enter)</i>",
                 parse_mode=ParseMode.HTML
             )
         except Exception as e:
             logger.warning(f"Error parsing deposit amount from input '{text_raw}': {e}")
             await update.message.reply_text(
-                f"❌ অনুগ্রহ করে সঠিক টাকার পরিমাণ লিখুন (যেমন: 500 বা ৫০০)।\n"
-                f"বাতিল করতে <b>cancel</b> লিখুন।",
+                f"❌ Please English USDEnglish Amount Enter (English: 500 English English)।\n"
+                f"Cancel English <b>cancel</b> Enter।",
                 parse_mode=ParseMode.HTML
             )
 
@@ -1924,8 +1922,8 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             txid = update.message.text.strip()
         else:
             await update.message.reply_text(
-                "❌ অনুগ্রহ করে সঠিক ট্রানজেকশন আইডি (TxID) অথবা পেমেন্টের স্ক্রিনশট পাঠান।\n"
-                "বাতিল করতে 'cancel' লিখুন।"
+                "❌ Please English English ID (TxID) or PaymentEnglish English Send।\n"
+                "Cancel English 'cancel' Enter।"
             )
             return
 
@@ -1935,11 +1933,11 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         dep_method = ctx.user_data.get("dep_method", "manual")
         dep_name   = ctx.user_data.get("dep_name", "Payment")
         sym = s.get("currency_symbol","$")
-        local = s.get("local_currency","BDT")
+        local = s.get("local_currency","USD")
 
         if amt_local <= 0 or amt_usd <= 0:
             await update.message.reply_text(
-                "⚠️ ডিপোজিটের পরিমাণ পাওয়া যায়নি বা সেশন শেষ হয়ে গেছে। অনুগ্রহ করে নতুন করে ডিপোজিট শুরু করুন।",
+                "⚠️ DepositEnglish Amount English English English English End English English। Please again Deposit Start English।",
                 reply_markup=main_menu_keyboard(uid)
             )
             return
@@ -1962,13 +1960,13 @@ async def deposit_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"⏳ {bold(sb('Deposit Request Submitted!'))}\n"
             f"{divider()}\n"
-            f"🆔 <b>ডিপোজিট আইডি:</b> <code>{dep_id}</code>\n"
-            f"💰 <b>পরিমাণ:</b> {amt_local:,.2f} {local} ({sym}{amt_usd:.4f})\n"
-            f"📱 <b>মেথড:</b> {html.escape(dep_name)}\n"
+            f"🆔 <b>Deposit ID:</b> <code>{dep_id}</code>\n"
+            f"💰 <b>Amount:</b> {amt_local:,.2f} {local} ({sym}{amt_usd:.4f})\n"
+            f"📱 <b>Method:</b> {html.escape(dep_name)}\n"
             f"🧾 <b>TxID / Screenshot:</b> <code>{html.escape(str(txid))}</code>\n"
             f"{divider()}\n"
-            f"✅ <b>আপনার ডিপোজিট রিকোয়েস্টটি সফলভাবে জমা হয়েছে।</b>\n"
-            f"এডমিন চেক করে দ্রুত আপনার একাউন্টে ব্যালেন্স যুক্ত করে দেবেন।",
+            f"✅ <b>Your Deposit English Successfully English has been।</b>\n"
+            f"Admin Check and English Your English Balance English and English।",
             parse_mode=ParseMode.HTML,
             reply_markup=main_menu_keyboard(uid)
         )
@@ -2035,8 +2033,8 @@ async def check_data(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = (
         f"🌐 {bold(sb('CHECK DATA & IMPORTANT LINKS'))}\n"
         f"{divider()}\n"
-        f"📌 <b>নিচে প্রয়োজনীয় সকল সাইট ও সার্ভিসের সরাসরি লিংক দেওয়া হলো:</b>\n"
-        f"<i>(যেকোনো বাটনে ক্লিক করলেই সরাসরি কাঙ্খিত লিংকটি ওপেন হয়ে যাবে)</i>\n"
+        f"📌 <b>below Required English English English English directly Link English English:</b>\n"
+        f"<i>(any ButtonEnglish Click English directly English Link English isEnglish English)</i>\n"
         f"{divider()}"
     )
 
@@ -2045,11 +2043,11 @@ async def check_data(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for lid, linfo in links.items():
             if not isinstance(linfo, dict):
                 continue
-            title = linfo.get("title", "🔗 লিংক")
+            title = linfo.get("title", "🔗 Link")
             url = linfo.get("url", "https://t.me")
             buttons.append([InlineKeyboardButton(f"👉 {title}", url=url)])
     else:
-        text += f"\n\n⚠️ <i>কোনো লিংক বা ডাটা বাটন এখনও যোগ করা হয়নি। এডমিন প্যানেল থেকে তৈরি করতে পারেন।</i>"
+        text += f"\n\n⚠️ <i>any Link English Data Button nowEnglish Add English isEnglish। Admin panel from Create English English।</i>"
 
     buttons.append([InlineKeyboardButton("🏠 " + sb("Home"), callback_data="home")])
     kb = InlineKeyboardMarkup(buttons)
@@ -2107,7 +2105,7 @@ def manager_or_owner(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
         if not can_manage(uid):
-            msg = "⚠️ আপনি শুধুমাত্র ভিউয়ার (View Only) এডমিন। এডিট বা পরিবর্তন করার অনুমতি নেই।"
+            msg = "⚠️ You English English (View Only) Admin। Edit English English English English none।"
             if update.message:
                 await update.message.reply_text(msg)
             elif update.callback_query:
@@ -2121,7 +2119,7 @@ def owner_only(func):
     async def wrapper(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = update.effective_user.id
         if not is_owner(uid):
-            msg = "🚫 শুধুমাত্র Owner এডমিন এই পরিবর্তনটি করতে পারবেন।"
+            msg = "🚫 English Owner Admin This English English English।"
             if update.message:
                 await update.message.reply_text(msg)
             elif update.callback_query:
@@ -2134,49 +2132,49 @@ def owner_only(func):
 async def admin_panel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = update.effective_user.id
     role = get_admin_role(uid)
-    role_badge = "👑 OWNER (মালিক)" if role == "owner" else ("🛠️ MANAGER (ম্যানেজার)" if role == "manager" else "👁️ VIEW ONLY (ভিউয়ার)")
+    role_badge = "👑 OWNER (English)" if role == "owner" else ("🛠️ MANAGER (English)" if role == "manager" else "👁️ VIEW ONLY (English)")
     s = get_settings()
-    fj_status = "🟢 সক্রিয়" if s.get("force_join_enabled", True) else "🔴 নিষ্ক্রিয়"
-    dep_status = "🟢 চালু" if s.get("deposit_open", True) else "🔴 বন্ধ"
-    wdraw_status = "🟢 চালু" if s.get("withdraw_open", True) else "🔴 বন্ধ"
+    fj_status = "🟢 English" if s.get("force_join_enabled", True) else "🔴 Off"
+    dep_status = "🟢 On" if s.get("deposit_open", True) else "🔴 Closed"
+    wdraw_status = "🟢 On" if s.get("withdraw_open", True) else "🔴 Closed"
     
     text = (
         f"👑 {bold(sb('ADMIN CONTROL CENTER'))} 👑\n"
         f"{divider()}\n"
-        f"🤖 <b>বট কন্ট্রোল ও ম্যানেজমেন্ট প্যানেল</b>\n\n"
-        f"👤 <b>এডমিন:</b> {html.escape(update.effective_user.full_name or 'Member')} (@{update.effective_user.username or 'N/A'})\n"
-        f"🔰 <b>আপনার পদমর্যাদা:</b> {role_badge}\n"
-        f"⚡ <b>সিস্টেম অবস্থা:</b> ফায়ারবেজ রিয়েলটাইম সিঙ্কড 🟢\n"
-        f"📢 <b>Force Join:</b> {fj_status} | 💳 <b>ডিপোজিট:</b> {dep_status} | 📤 <b>উইথড্র:</b> {wdraw_status}\n"
+        f"🤖 <b>Bot English English English English</b>\n\n"
+        f"👤 <b>Admin:</b> {html.escape(update.effective_user.full_name or 'Member')} (@{update.effective_user.username or 'N/A'})\n"
+        f"🔰 <b>Your English:</b> {role_badge}\n"
+        f"⚡ <b>English English:</b> English English English 🟢\n"
+        f"📢 <b>Force Join:</b> {fj_status} | 💳 <b>Deposit:</b> {dep_status} | 📤 <b>English:</b> {wdraw_status}\n"
         f"{divider()}\n"
-        f"📌 <b>কন্ট্রোল মেনু থেকে পছন্দসই বিভাগ সিলেক্ট করুন:</b>"
+        f"📌 <b>English Menu from English English English English:</b>"
     )
     kb = InlineKeyboardMarkup([
-        # 1. শপ ও সেলস ম্যানেজমেন্ট
+        # 1. Shop English English English
         [InlineKeyboardButton("🛒 " + sb("Manage Products & Scripts"), callback_data="adm_products")],
-        # 2. ইউজার ও সিকিউরিটি
-        [InlineKeyboardButton("👥 ইউজার লিস্ট ও হিস্ট্রি", callback_data="adm_users"),
-         InlineKeyboardButton("⛔ ব্যান / আনব্যান ইউজার", callback_data="adm_ban")],
-        # 3. ফাইন্যান্স ও ফান্ডস
-        [InlineKeyboardButton("💳 ডিপোজিট রিকোয়েস্ট", callback_data="adm_deposits"),
-         InlineKeyboardButton("📤 উইথড্র রিকোয়েস্ট", callback_data="adm_withdrawals")],
-        [InlineKeyboardButton("🎁 ম্যানুয়াল ব্যালেন্স অ্যাড", callback_data="adm_addbal"),
-         InlineKeyboardButton("💰 পেমেন্ট মেথড সেটআপ", callback_data="adm_payments")],
-        # 4. কনফিগারেশন ও মেইন বাটন কন্ট্রোল
-        [InlineKeyboardButton("🎛️ মেইন বাটন কন্ট্রোল (Button Manager)", callback_data="adm_btnmgr")],
-        [InlineKeyboardButton("⚙️ বটের মূল সেটিংস", callback_data="adm_settings"),
-         InlineKeyboardButton("👑 এডমিন ও রোল এক্সেস", callback_data="adm_roles")],
-        [InlineKeyboardButton("📢 Force Join চ্যানেল কন্ট্রোল", callback_data="adm_forcejoin"),
-         InlineKeyboardButton("🔗 CHECK DATA বাটন কন্ট্রোল", callback_data="adm_checkdata")],
-        # 5. ব্যালেন্স রিসেট ও ডাটাবেজ ব্যাকআপ
-        [InlineKeyboardButton("⚠️ সব ব্যালেন্স ০ করুন", callback_data="adm_resetbal_ask"),
-         InlineKeyboardButton("💾 ডাটাবেজ ব্যাকআপ (.json)", callback_data="adm_dbbackup")],
-        # 6. ব্রডকাস্ট, অ্যানালিটিক্স ও ক্লাউড
-        [InlineKeyboardButton("📢 গ্লোবাল ব্রডকাস্ট", callback_data="adm_broadcast"),
-         InlineKeyboardButton("📊 বট স্ট্যাটিস্টিকস", callback_data="adm_stats")],
-        [InlineKeyboardButton("🔥 ফায়ারবেজ লাইভ সিঙ্ক ও স্ট্যাটাস", callback_data="adm_fbstatus")],
-        # 7. প্রস্থান
-        [InlineKeyboardButton("🏠 প্যানেল বন্ধ করুন", callback_data="home")]
+        # 2. User English English
+        [InlineKeyboardButton("👥 User English English English", callback_data="adm_users"),
+         InlineKeyboardButton("⛔ English / English User", callback_data="adm_ban")],
+        # 3. English English English
+        [InlineKeyboardButton("💳 Deposit English", callback_data="adm_deposits"),
+         InlineKeyboardButton("📤 English English", callback_data="adm_withdrawals")],
+        [InlineKeyboardButton("🎁 English Balance English", callback_data="adm_addbal"),
+         InlineKeyboardButton("💰 Payment Method English", callback_data="adm_payments")],
+        # 4. English English English Button manager
+        [InlineKeyboardButton("🎛️ English Button manager (Button Manager)", callback_data="adm_btnmgr")],
+        [InlineKeyboardButton("⚙️ BotEnglish English Settings", callback_data="adm_settings"),
+         InlineKeyboardButton("👑 Admin English English English", callback_data="adm_roles")],
+        [InlineKeyboardButton("📢 Force Join Channel English", callback_data="adm_forcejoin"),
+         InlineKeyboardButton("🔗 CHECK DATA Button manager", callback_data="adm_checkdata")],
+        # 5. Balance English English DataEnglish English
+        [InlineKeyboardButton("⚠️ All Balance English English", callback_data="adm_resetbal_ask"),
+         InlineKeyboardButton("💾 DataEnglish English (.json)", callback_data="adm_dbbackup")],
+        # 6. English, EnglishnotEnglish English English
+        [InlineKeyboardButton("📢 English English", callback_data="adm_broadcast"),
+         InlineKeyboardButton("📊 Bot English", callback_data="adm_stats")],
+        [InlineKeyboardButton("🔥 English English English English English", callback_data="adm_fbstatus")],
+        # 7. English
+        [InlineKeyboardButton("🏠 Close panel English", callback_data="home")]
     ])
     if update.message:
         await update.message.reply_text(
@@ -2208,16 +2206,16 @@ async def adm_btnmgr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     }
 
     text = (
-        f"🎛️ <b>মেইন বাটন কন্ট্রোল প্যানেল (Button Manager)</b>\n"
+        f"🎛️ <b>English Button manager English (Button Manager)</b>\n"
         f"{divider()}\n"
-        f"বটের ইউজার মেনুতে কোন কোন বাটন প্রদর্শিত হবে তা এখান থেকে অন/অফ করতে পারবেন:\n\n"
+        f"BotEnglish User MenuEnglish English English Button English will be English English from English/English English English:\n\n"
     )
 
     buttons = []
     for btn_id, info in default_buttons.items():
         curr = mb.get(btn_id, {})
         is_on = curr.get("enabled", True)
-        status_text = "🟢 চালু" if is_on else "🔴 বন্ধ"
+        status_text = "🟢 On" if is_on else "🔴 Closed"
         label = info["label"]
         icon = info["icon"]
         text += f"• {icon} <b>{label}:</b> {status_text}\n"
@@ -2225,7 +2223,7 @@ async def adm_btnmgr(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         toggle_label = f"{icon} {label} [{status_text}]"
         buttons.append([InlineKeyboardButton(toggle_label, callback_data=f"adm_btntog_{btn_id}")])
 
-    buttons.append([InlineKeyboardButton("⬅️ ব্যাক টু এডমিন প্যানেল", callback_data="adm_panel")])
+    buttons.append([InlineKeyboardButton("⬅️ English English Admin panel", callback_data="adm_panel")])
     kb = InlineKeyboardMarkup(buttons)
 
     if query:
@@ -2256,15 +2254,15 @@ async def adm_resetbal_ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     users = fb_get("users", {})
     text = (
-        f"⚠️ <b>সতর্কবার্তা: সব ইউজারের ব্যালেন্স ০ করুন</b>\n"
+        f"⚠️ <b>EnglishMessage: All UserEnglish Balance English English</b>\n"
         f"{divider()}\n"
-        f"বর্তমান মোট রেজিস্টার্ড ইউজার: <b>{len(users)}</b> জন\n\n"
-        f"আপনি কি নিশ্চিত যে আপনি বটের <b>সকল ইউজারের ব্যালেন্স ০ (শূন্য)</b> করতে চান?\n"
-        f"⚡ এই পরিবর্তনটি সাথে সাথে লোকাল ক্যাশ এবং ফায়ারবেজ ডাটাবেজে কার্যকর হবে।"
+        f"Current Total English User: <b>{len(users)}</b> users\n\n"
+        f"You English Confirm English You BotEnglish <b>English UserEnglish Balance English (English)</b> English English?\n"
+        f"⚡ This English with with English English and English DataEnglish English will be।"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⚠️ হ্যাঁ, নিশ্চিত! সব ব্যালেন্স ০ করুন", callback_data="adm_resetbal_confirm")],
-        [InlineKeyboardButton("❌ বাতিল করুন", callback_data="adm_panel")]
+        [InlineKeyboardButton("⚠️ English, Confirm! All Balance English English", callback_data="adm_resetbal_confirm")],
+        [InlineKeyboardButton("❌ Cancel English", callback_data="adm_panel")]
     ])
     await safe_edit_text(query, text, reply_markup=kb)
 
@@ -2274,13 +2272,13 @@ async def adm_resetbal_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     count = reset_all_user_balances()
     text = (
-        f"✅ <b>সকল ইউজারের ব্যালেন্স সফলভাবে ০ করা হয়েছে!</b>\n"
+        f"✅ <b>English UserEnglish Balance Successfully English English has been!</b>\n"
         f"{divider()}\n"
-        f"👥 মোট <b>{count}</b> জন ইউজারের ওয়ালেট ব্যালেন্স ০.০০ করা হয়েছে।\n"
-        f"🔥 ফায়ারবেজ এবং লোকাল ডাটাবেজে সফলভাবে সিঙ্ক সম্পন্ন হয়েছে।"
+        f"👥 Total <b>{count}</b> users UserEnglish English Balance English.English English has been।\n"
+        f"🔥 English and English DataEnglish Successfully English Completed has been।"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")]
+        [InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")]
     ])
     await safe_edit_text(query, text, reply_markup=kb)
 
@@ -2290,7 +2288,7 @@ async def adm_resetbal_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @admin_only
 async def adm_dbbackup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("💾 ডাটাবেজ ব্যাকআপ প্রস্তুত হচ্ছে...", show_alert=False)
+    await query.answer("💾 DataEnglish English English English...", show_alert=False)
     uid = query.from_user.id
     try:
         with _cache_lock:
@@ -2302,17 +2300,17 @@ async def adm_dbbackup(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 document=f,
                 filename=backup_name,
                 caption=(
-                    f"💾 <b>JAMES — ডাটাবেজ সম্পূর্ণ ব্যাকআপ ফাইল</b>\n"
+                    f"💾 <b>JAMES — DataEnglish English English File</b>\n"
                     f"{mini_divider()}\n"
-                    f"📅 তারিখ: {datetime.now().strftime('%d %B %Y, %I:%M %p')}\n"
-                    f"🛡️ সমস্ত ইউজার, ব্যালেন্স, প্রোডাক্ট, ক্যাটাগরি ও সেটিংস সংরক্ষিত।"
+                    f"📅 Date: {datetime.now().strftime('%d %B %Y, %I:%M %p')}\n"
+                    f"🛡️ English User, Balance, Product, Category English Settings English।"
                 ),
                 parse_mode=ParseMode.HTML
             )
-        await query.answer("✅ সম্পূর্ণ ব্যাকআপ ফাইল আপনার চ্যাটে পাঠানো হয়েছে!", show_alert=True)
+        await query.answer("✅ English English File Your English Sent!", show_alert=True)
     except Exception as e:
         logger.error(f"Backup export error: {e}")
-        await query.answer(f"❌ ব্যাকআপ পাঠাতে সমস্যা হয়েছে: {e}", show_alert=True)
+        await query.answer(f"❌ English English English has been: {e}", show_alert=True)
 
 # ─── ADMIN: PRODUCTS ─────────────────────────────────────────
 @admin_only
@@ -2385,7 +2383,7 @@ async def adm_prod_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     s = get_settings()
     rate = s.get("exchange_rate", 125)
-    local_sym = s.get("local_currency", "৳")
+    local_sym = s.get("local_currency", "$")
     price_val = float(prod.get("price", 0))
     local_price = round(price_val * rate, 2)
 
@@ -2395,58 +2393,58 @@ async def adm_prod_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     source_file = prod.get("file_name") or ("File Attached" if prod.get("file_id") else "—")
     dl_count = prod.get("downloads", 0)
     is_hidden = prod.get("hidden", False)
-    visibility_str = "🔴 হাইড (Hidden)" if is_hidden else "🟢 সক্রিয় (Active)"
+    visibility_str = "🔴 English (Hidden)" if is_hidden else "🟢 English (Active)"
     description = prod.get("description") or "—"
     run_guide = prod.get("run_guide") or "—"
     mtype = prod.get("media_type") or ("video" if prod.get("video") else ("photo" if prod.get("image") else "None"))
-    media_badge = f"🎥 ভিডিও ({mtype})" if mtype == "video" else (f"🖼️ ছবি ({mtype})" if mtype == "photo" else ("✨ অ্যানিমেশন" if mtype == "animation" else "কোনো মিডিয়া নেই"))
+    media_badge = f"🎥 English ({mtype})" if mtype == "video" else (f"🖼️ English ({mtype})" if mtype == "photo" else ("✨ English" if mtype == "animation" else "any English none"))
 
     text = (
-        f"⚙️ <b>স্ক্রিপ্ট ডিটেইলস ও এডিটর</b>\n"
+        f"⚙️ <b>English English English EditEnglish</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"• <b>নাম:</b> {p_name}\n"
-        f"• <b>ক্যাটাগরি:</b> {cat_name}\n"
-        f"• <b>মূল্য:</b> {price_val}$ ({local_price} {local_sym})\n"
-        f"• <b>মিডিয়া ব্যানার:</b> {media_badge}\n"
-        f"• <b>ডেমো লিংক:</b> {demo_link}\n"
-        f"• <b>মেইন এন্ট্রি ফাইল:</b> {entry_file}\n"
-        f"• <b>সোর্স ফাইল:</b> {source_file}\n"
-        f"• <b>ডাউনলোড সংখ্যা:</b> {dl_count} বার\n"
-        f"• <b>ভিজিবিলিটি:</b> {visibility_str}\n"
+        f"• <b>Name:</b> {p_name}\n"
+        f"• <b>Category:</b> {cat_name}\n"
+        f"• <b>Price:</b> {price_val}$ ({local_price} {local_sym})\n"
+        f"• <b>English EnglishnotEnglish:</b> {media_badge}\n"
+        f"• <b>English Link:</b> {demo_link}\n"
+        f"• <b>English English File:</b> {entry_file}\n"
+        f"• <b>English File:</b> {source_file}\n"
+        f"• <b>Download English:</b> {dl_count} English\n"
+        f"• <b>English:</b> {visibility_str}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📝 <b>বিবরণ:</b>\n{description}\n\n"
-        f"🛠️ <b>রান করার নিয়ম ও কমান্ডসমূহ:</b>\n{run_guide}"
+        f"📝 <b>Description:</b>\n{description}\n\n"
+        f"🛠️ <b>English English English English English:</b>\n{run_guide}"
     )
 
-    vis_label = "👁️ স্ট্যাটাস: শো করুন" if is_hidden else "👁️ স্ট্যাটাস: হাইড করুন"
+    vis_label = "👁️ English: English English" if is_hidden else "👁️ English: English English"
 
     buttons = [
         [
-            InlineKeyboardButton("✏️ নাম পরিবর্তন", callback_data=f"aedt_name_{cat_id}_{pid}"),
-            InlineKeyboardButton("💰 মূল্য পরিবর্তন", callback_data=f"aedt_price_{cat_id}_{pid}")
+            InlineKeyboardButton("✏️ Name English", callback_data=f"aedt_name_{cat_id}_{pid}"),
+            InlineKeyboardButton("💰 Price English", callback_data=f"aedt_price_{cat_id}_{pid}")
         ],
         [
-            InlineKeyboardButton("📁 ক্যাটাগরি বদলান", callback_data=f"aedt_cat_{cat_id}_{pid}"),
-            InlineKeyboardButton("🔗 ডেমো লিংক এডিট", callback_data=f"aedt_demo_{cat_id}_{pid}")
+            InlineKeyboardButton("📁 Category English", callback_data=f"aedt_cat_{cat_id}_{pid}"),
+            InlineKeyboardButton("🔗 English Link Edit", callback_data=f"aedt_demo_{cat_id}_{pid}")
         ],
         [
-            InlineKeyboardButton("📝 ডেসক্রিপশন এডিট", callback_data=f"aedt_desc_{cat_id}_{pid}"),
-            InlineKeyboardButton("🛠️ রান গাইড এডিট", callback_data=f"aedt_guide_{cat_id}_{pid}")
+            InlineKeyboardButton("📝 English Edit", callback_data=f"aedt_desc_{cat_id}_{pid}"),
+            InlineKeyboardButton("🛠️ English English Edit", callback_data=f"aedt_guide_{cat_id}_{pid}")
         ],
         [
-            InlineKeyboardButton("🖼️/🎥 মিডিয়া এডিট (ছবি/ভিডিও)", callback_data=f"aedt_media_{cat_id}_{pid}"),
-            InlineKeyboardButton("🚀 এন্ট্রি ফাইল বদলান", callback_data=f"aedt_entry_{cat_id}_{pid}")
+            InlineKeyboardButton("🖼️/🎥 English Edit (English/English)", callback_data=f"aedt_media_{cat_id}_{pid}"),
+            InlineKeyboardButton("🚀 English File English", callback_data=f"aedt_entry_{cat_id}_{pid}")
         ],
         [
-            InlineKeyboardButton("📤 ফাইল আপলোড / স্টক", callback_data=f"aedt_file_{cat_id}_{pid}"),
-            InlineKeyboardButton("📥 টেস্ট ডাউনলোড", callback_data=f"aedt_testdl_{cat_id}_{pid}")
+            InlineKeyboardButton("📤 File English / Stock", callback_data=f"aedt_file_{cat_id}_{pid}"),
+            InlineKeyboardButton("📥 English Download", callback_data=f"aedt_testdl_{cat_id}_{pid}")
         ],
         [
             InlineKeyboardButton(vis_label, callback_data=f"aedt_vis_{cat_id}_{pid}"),
-            InlineKeyboardButton("🗑️ স্ক্রিপ্ট ডিলিট", callback_data=f"adm_delprod_{cat_id}_{pid}")
+            InlineKeyboardButton("🗑️ English Delete", callback_data=f"adm_delprod_{cat_id}_{pid}")
         ],
         [
-            InlineKeyboardButton("⬅️ ব্যাক", callback_data=f"adm_cat_{cat_id}")
+            InlineKeyboardButton("⬅️ English", callback_data=f"adm_cat_{cat_id}")
         ]
     ]
 
@@ -2466,11 +2464,11 @@ async def aedt_start_name(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_name_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"✏️ <b>স্ক্রিপ্ট / প্রোডাক্টের নাম পরিবর্তন</b>\n{divider()}\n"
-        f"📝 অনুগ্রহ করে নতুন নামটি লিখে পাঠান:",
+        f"✏️ <b>English / ProductEnglish Name English</b>\n{divider()}\n"
+        f"📝 Please New Name English Send:",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2481,14 +2479,14 @@ async def aedt_start_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["awaiting"] = f"aedt_price_{cat_id}_{pid}"
     s = get_settings()
     rate = s.get("exchange_rate", 125)
-    local_sym = s.get("local_currency", "BDT")
+    local_sym = s.get("local_currency", "USD")
     await safe_edit_text(query, 
-        f"💰 <b>মূল্য পরিবর্তন</b>\n{divider()}\n"
-        f"💵 নতুন মূল্য USD তে লিখুন (যেমন: <code>5.0</code> বা <code>2.5</code>):\n"
-        f"<i>(বর্তমান রেট: 1 USD = {rate} {local_sym})</i>",
+        f"💰 <b>Price English</b>\n{divider()}\n"
+        f"💵 New Price USD English Enter (English: <code>5.0</code> English <code>2.5</code>):\n"
+        f"<i>(Current Rate: 1 USD = {rate} {local_sym})</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_cat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2503,10 +2501,10 @@ async def aedt_start_cat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             buttons.append([InlineKeyboardButton(
                 f"📁 {c.get('name', c_id)}", callback_data=f"aedt_moveto_{cat_id}_{pid}_{c_id}"
             )])
-    buttons.append([InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")])
+    buttons.append([InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")])
     await safe_edit_text(query, 
-        f"📁 <b>ক্যাটাগরি বদলান</b>\n{divider()}\n"
-        f"এই প্রোডাক্টটি কোন ক্যাটাগরিতে সরাতে চান তা সিলেক্ট করুন:",
+        f"📁 <b>Category English</b>\n{divider()}\n"
+        f"This Product English CategoryEnglish English English English English English:",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -2520,7 +2518,7 @@ async def aedt_move_cat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if prod:
         fb_set(f"categories/{to_cat}/products/{pid}", prod)
         fb_delete(f"categories/{from_cat}/products/{pid}")
-        await query.answer("✅ ক্যাটাগরি সফলভাবে পরিবর্তন হয়েছে!", show_alert=True)
+        await query.answer("✅ Category Successfully English has been!", show_alert=True)
     query.data = f"adm_prod_{to_cat}_{pid}"
     await adm_prod_detail(update, ctx)
 
@@ -2532,12 +2530,12 @@ async def aedt_start_demo(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_demo_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"🔗 <b>ডেমো লিংক এডিট</b>\n{divider()}\n"
-        f"🤖 নতুন ডেমো লিংক বা @ইউজারনেম লিখুন:\n"
-        f"<i>(লিংক রিমুভ করতে <code>clear</code> লিখে পাঠান)</i>",
+        f"🔗 <b>English Link Edit</b>\n{divider()}\n"
+        f"🤖 New English Link English @UserEnglish Enter:\n"
+        f"<i>(Link Remove English <code>clear</code> English Send)</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_desc(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2547,11 +2545,11 @@ async def aedt_start_desc(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_desc_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"📝 <b>ডেসক্রিপশন এডিট</b>\n{divider()}\n"
-        f"✏️ প্রোডাক্টের নতুন বিবরণ বা ফিচারসমূহ লিখে পাঠান:",
+        f"📝 <b>English Edit</b>\n{divider()}\n"
+        f"✏️ ProductEnglish New Description English English English Send:",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_guide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2561,12 +2559,12 @@ async def aedt_start_guide(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_guide_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"🛠️ <b>রান করার নিয়ম ও কমান্ডসমূহ এডিট (Setup & Run Guide)</b>\n{divider()}\n"
-        f"📌 বটের ইনস্টলেশন কমান্ড, প্যাকেজ ও রান করার নিয়মাবলী লিখে পাঠান:\n"
-        f"<i>(মুছে ফেলতে চাইলে <code>clear</code> লিখে পাঠান)</i>",
+        f"🛠️ <b>English English English English English Edit (Setup & Run Guide)</b>\n{divider()}\n"
+        f"📌 BotEnglish English English, English English English English English English Send:\n"
+        f"<i>(English English English <code>clear</code> English Send)</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_media(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2576,13 +2574,13 @@ async def aedt_start_media(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_media_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"🖼️/🎥 <b>মিডিয়া এডিটর (ছবি / ভিডিও ব্যানার)</b>\n{divider()}\n"
-        f"📸 এই প্রোডাক্টের জন্য নতুন একটি <b>ছবি</b> অথবা <b>ভিডিও</b> সরাসরি পাঠান।\n"
-        f"🔗 অথবা ছবি/ভিডিওর ওয়েব লিঙ্ক পাঠান।\n\n"
-        f"🗑️ বর্তমান মিডিয়া মুছে ফেলতে চাইলে <code>remove</code> লিখে পাঠান।",
+        f"🖼️/🎥 <b>English EditEnglish (English / English EnglishnotEnglish)</b>\n{divider()}\n"
+        f"📸 This ProductEnglish for New English <b>English</b> or <b>English</b> directly Send।\n"
+        f"🔗 or English/English English English Send।\n\n"
+        f"🗑️ Current English English English English <code>remove</code> English Send।",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2592,12 +2590,12 @@ async def aedt_start_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_entry_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"🚀 <b>মেইন এন্ট্রি ফাইল বদলান</b>\n{divider()}\n"
-        f"📄 মেইন স্ক্রিপ্ট ফাইলের নাম লিখুন:\n"
-        f"<i>(যেমন: <code>main.py</code>, <code>server.js</code>, <code>bot.py</code>, <code>index.php</code>)</i>",
+        f"🚀 <b>English English File English</b>\n{divider()}\n"
+        f"📄 English English FileEnglish Name Enter:\n"
+        f"<i>(English: <code>main.py</code>, <code>server.js</code>, <code>bot.py</code>, <code>index.php</code>)</i>",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_start_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2607,12 +2605,12 @@ async def aedt_start_file(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cat_id, pid = parts[0], parts[1]
     ctx.user_data["awaiting"] = f"aedt_file_{cat_id}_{pid}"
     await safe_edit_text(query, 
-        f"📤 <b>নতুন ফাইল আপলোড / স্টক আপডেট</b>\n{divider()}\n"
-        f"📁 <b>Option 1:</b> সরাসরি কোনো ফাইল (<code>.zip</code>, <code>.py</code>, <code>.js</code>, <code>.rar</code>) টেলিগ্রামে সেন্ড করুন।\n\n"
-        f"📝 <b>Option 2:</b> টেক্সট স্টক এক লাইন পর পর লিখে পাঠান।",
+        f"📤 <b>New File English / Stock English</b>\n{divider()}\n"
+        f"📁 <b>Option 1:</b> directly any File (<code>.zip</code>, <code>.py</code>, <code>.js</code>, <code>.rar</code>) English English English।\n\n"
+        f"📝 <b>Option 2:</b> English Stock English English English English English Send।",
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("❌ বাতিল", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
+            InlineKeyboardButton("❌ Cancel", callback_data=f"adm_prod_{cat_id}_{pid}")]]))
 
 @admin_only
 async def aedt_test_download(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2636,10 +2634,10 @@ async def aedt_test_download(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 chat_id=query.from_user.id,
                 document=file_id,
                 filename=file_name,
-                caption=f"📥 <b>[টেস্ট ডাউনলোড]</b> {pname}\n🚀 <i>এন্ট্রি ফাইল:</i> <code>{prod.get('entry_file', 'main.py')}</code>",
+                caption=f"📥 <b>[English Download]</b> {pname}\n🚀 <i>English File:</i> <code>{prod.get('entry_file', 'main.py')}</code>",
                 parse_mode=ParseMode.HTML
             )
-            await query.answer("✅ টেস্ট ফাইল পাঠানো হয়েছে!", show_alert=True)
+            await query.answer("✅ English File Sent!", show_alert=True)
             return
         except Exception as e:
             logger.error(f"Test download error: {e}")
@@ -2652,10 +2650,10 @@ async def aedt_test_download(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     chat_id=query.from_user.id,
                     document=fid,
                     filename=fn,
-                    caption=f"📥 <b>[টেস্ট ডাউনলোড]</b> {pname}",
+                    caption=f"📥 <b>[English Download]</b> {pname}",
                     parse_mode=ParseMode.HTML
                 )
-                await query.answer("✅ টেস্ট ফাইল পাঠানো হয়েছে!", show_alert=True)
+                await query.answer("✅ English File Sent!", show_alert=True)
                 return
             except Exception as e:
                 pass
@@ -2664,12 +2662,12 @@ async def aedt_test_download(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         preview_text = "\n".join(items[:5])
         await ctx.bot.send_message(
             query.from_user.id,
-            f"📥 <b>[টেস্ট ডাটা প্রিভিউ]</b> {pname}\n{divider()}\n<code>{preview_text}</code>",
+            f"📥 <b>[English Data English]</b> {pname}\n{divider()}\n<code>{preview_text}</code>",
             parse_mode=ParseMode.HTML
         )
-        await query.answer("✅ টেস্ট ডাটা পাঠানো হয়েছে!", show_alert=True)
+        await query.answer("✅ English Data Sent!", show_alert=True)
     else:
-        await query.answer("⚠️ কোনো ফাইল বা স্টক যুক্ত করা নেই!", show_alert=True)
+        await query.answer("⚠️ any File English Stock English English none!", show_alert=True)
 
 @admin_only
 async def aedt_toggle_visibility(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2680,7 +2678,7 @@ async def aedt_toggle_visibility(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     prod = fb_get(f"categories/{cat_id}/products/{pid}", {})
     is_hidden = prod.get("hidden", False)
     fb_update(f"categories/{cat_id}/products/{pid}", {"hidden": not is_hidden})
-    status_msg = "🔴 প্রোডাক্টটি এখন হাইড করা হয়েছে (ইউজার শপে দেখাবে না)" if not is_hidden else "🟢 প্রোডাক্টটি এখন সক্রিয় করা হয়েছে (ইউজার শপে দেখাবে)"
+    status_msg = "🔴 Product now English English has been (User ShopEnglish English not)" if not is_hidden else "🟢 Product now English English has been (User ShopEnglish English)"
     await query.answer(status_msg, show_alert=True)
     query.data = f"adm_prod_{cat_id}_{pid}"
     await adm_prod_detail(update, ctx)
@@ -2691,42 +2689,42 @@ async def adm_settings(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     s = get_settings()
-    dep_st = "🟢 চালু" if s.get('deposit_open') else "🔴 বন্ধ"
-    wdr_st = "🟢 চালু" if s.get('withdraw_open') else "🔴 বন্ধ"
+    dep_st = "🟢 On" if s.get('deposit_open') else "🔴 Closed"
+    wdr_st = "🟢 On" if s.get('withdraw_open') else "🔴 Closed"
     text = (
-        f"⚙️ <b>বটের গ্লোবাল কনফিগারেশন ও সেটিংস</b>\n"
+        f"⚙️ <b>BotEnglish English English English Settings</b>\n"
         f"{divider()}\n"
-        f"🤖 <b>বটের নাম:</b> {s.get('bot_name','')}\n"
-        f"💱 <b>আন্তর্জাতিক কারেন্সি:</b> {s.get('currency_name','')} ({s.get('currency_symbol','')})\n"
-        f"🏦 <b>লোকাল কারেন্সি:</b> {s.get('local_currency','')}\n"
-        f"📈 <b>এক্সচেঞ্জ রেট:</b> 1$ = {s.get('exchange_rate','')} {s.get('local_currency','BDT')}\n"
-        f"💳 <b>ডিপোজিট গেটওয়ে:</b> {dep_st}\n"
-        f"📤 <b>উইথড্র গেটওয়ে:</b> {wdr_st}\n"
-        f"⬇️ <b>মিনিমাম ডিপোজিট:</b> {s.get('min_deposit','')}\n"
-        f"⬆️ <b>মিনিমাম উইথড্র:</b> {s.get('min_withdraw','')}\n"
-        f"🎁 <b>রেফারেল কমিশন:</b> {s.get('referral_pct',5)}%\n"
-        f"🔗 <b>সাপোর্ট লিংক:</b> {s.get('support_link','')}\n"
+        f"🤖 <b>BotEnglish Name:</b> {s.get('bot_name','')}\n"
+        f"💱 <b>International currency:</b> {s.get('currency_name','')} ({s.get('currency_symbol','')})\n"
+        f"🏦 <b>Local currency:</b> {s.get('local_currency','')}\n"
+        f"📈 <b>Exchange rate:</b> 1$ = {s.get('exchange_rate','')} {s.get('local_currency','USD')}\n"
+        f"💳 <b>Deposit English:</b> {dep_st}\n"
+        f"📤 <b>English English:</b> {wdr_st}\n"
+        f"⬇️ <b>Minimum deposit:</b> {s.get('min_deposit','')}\n"
+        f"⬆️ <b>English English:</b> {s.get('min_withdraw','')}\n"
+        f"🎁 <b>Referral Commission:</b> {s.get('referral_pct',5)}%\n"
+        f"🔗 <b>Support Link:</b> {s.get('support_link','')}\n"
         f"{divider()}\n"
-        f"💡 <i>যেকোনো তথ্য পরিবর্তন করতে নিচের বাটনে চাপুন:</i>"
+        f"💡 <i>any Information English English below ButtonEnglish English:</i>"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✏️ বটের নাম", callback_data="aset_bot_name"),
-         InlineKeyboardButton("✏️ ওয়েলকাম টেক্সট", callback_data="aset_welcome_text")],
-        [InlineKeyboardButton("✏️ কারেন্সি নাম", callback_data="aset_currency_name"),
-         InlineKeyboardButton("✏️ কারেন্সি সিম্বল", callback_data="aset_currency_symbol")],
-        [InlineKeyboardButton("✏️ লোকাল কারেন্সি", callback_data="aset_local_currency"),
-         InlineKeyboardButton("✏️ এক্সচেঞ্জ রেট", callback_data="aset_exchange_rate")],
-        [InlineKeyboardButton("✏️ মিনিমাম ডিপোজিট", callback_data="aset_min_deposit"),
-         InlineKeyboardButton("✏️ মিনিমাম উইথড্র", callback_data="aset_min_withdraw")],
-        [InlineKeyboardButton("✏️ রেফারেল কমিশন %", callback_data="aset_referral_pct"),
-         InlineKeyboardButton("✏️ সাপোর্ট ইউজারনেম/লিংক", callback_data="aset_support_link")],
+        [InlineKeyboardButton("✏️ BotEnglish Name", callback_data="aset_bot_name"),
+         InlineKeyboardButton("✏️ English English", callback_data="aset_welcome_text")],
+        [InlineKeyboardButton("✏️ Currency name", callback_data="aset_currency_name"),
+         InlineKeyboardButton("✏️ Currency symbol", callback_data="aset_currency_symbol")],
+        [InlineKeyboardButton("✏️ Local currency", callback_data="aset_local_currency"),
+         InlineKeyboardButton("✏️ Exchange rate", callback_data="aset_exchange_rate")],
+        [InlineKeyboardButton("✏️ Minimum deposit", callback_data="aset_min_deposit"),
+         InlineKeyboardButton("✏️ English English", callback_data="aset_min_withdraw")],
+        [InlineKeyboardButton("✏️ Referral Commission %", callback_data="aset_referral_pct"),
+         InlineKeyboardButton("✏️ Support UserEnglish/Link", callback_data="aset_support_link")],
         [InlineKeyboardButton(
-            ("⏸️ ডিপোজিট বন্ধ করুন" if s.get("deposit_open") else "▶️ ডিপোজিট চালু করুন"),
+            ("⏸️ Deposit Closed English" if s.get("deposit_open") else "▶️ Deposit On English"),
             callback_data="aset_toggle_deposit"),
          InlineKeyboardButton(
-            ("⏸️ উইথড্র বন্ধ করুন" if s.get("withdraw_open") else "▶️ উইথড্র চালু করুন"),
+            ("⏸️ English Closed English" if s.get("withdraw_open") else "▶️ English On English"),
             callback_data="aset_toggle_withdraw")],
-        [InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")],
+        [InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")],
     ])
     await safe_edit_text(query, text, reply_markup=kb)
 
@@ -2737,24 +2735,24 @@ async def adm_payments(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     methods = get_payment_methods()
     text = (
-        f"💰 <b>পেমেন্ট মেথড ও একাউন্ট নম্বর ম্যানেজমেন্ট</b>\n"
+        f"💰 <b>Payment Method English English Number English</b>\n"
         f"{divider()}\n"
-        f"📌 ডিপোজিটের জন্য সক্রিয় পেমেন্ট মেথড ও নাম্বারসমূহ:\n\n"
+        f"📌 DepositEnglish for English Payment Method English NameEnglish:\n\n"
     )
     for key, pm in methods.items():
-        status = "🟢 সক্রিয়" if pm.get("enabled") else "🔴 বন্ধ"
+        status = "🟢 English" if pm.get("enabled") else "🔴 Closed"
         number = pm.get("number") or pm.get("address","N/A")
         text += f"• <b>{pm.get('name','?')}</b> ({status}):\n   <code>{number}</code>\n"
-    text += f"{divider()}\n💡 <i>একাউন্ট নাম্বার পরিবর্তন বা অন/অফ করতে বাটনে চাপুন:</i>"
+    text += f"{divider()}\n💡 <i>English NameEnglish English English English/English English ButtonEnglish English:</i>"
 
     buttons = []
     for key, pm in methods.items():
-        toggle_label = ("⏸️ বন্ধ করুন" if pm.get("enabled") else "▶️ চালু করুন")
+        toggle_label = ("⏸️ Closed English" if pm.get("enabled") else "▶️ On English")
         buttons.append([
             InlineKeyboardButton(f"✏️ {pm.get('name','?')}", callback_data=f"apm_edit_{key}"),
             InlineKeyboardButton(toggle_label, callback_data=f"apm_toggle_{key}"),
         ])
-    buttons.append([InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")])
+    buttons.append([InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")])
 
     await safe_edit_text(
         query, text,
@@ -2769,7 +2767,7 @@ async def adm_deposits(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     pending = {k: v for k, v in deposits.items() if v.get("status")=="pending"}
     s = get_settings()
     sym = s.get("currency_symbol","$")
-    local = s.get("local_currency","BDT")
+    local = s.get("local_currency","USD")
 
     text = (
         f"💳 {bold(sb('DEPOSIT REQUESTS'))}\n"
@@ -2802,7 +2800,7 @@ async def adm_deposit_view(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     dep = fb_get(f"deposits/{dep_id}", {})
     s = get_settings()
     sym = s.get("currency_symbol","$")
-    local = s.get("local_currency","BDT")
+    local = s.get("local_currency","USD")
     uid_d = dep.get("uid","?")
     amt_u = dep.get("amount_usd", 0)
 
@@ -2861,15 +2859,15 @@ async def adm_deposit_approve(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         dep = fb_get(f"deposits/{dep_id}", {})
 
     if not dep:
-        await query.answer("❌ ডিপোজিট রেকর্ড পাওয়া যায়নি!", show_alert=True)
+        await query.answer("❌ Deposit English English English!", show_alert=True)
         return
 
     status = dep.get("status")
     if status == "approved":
-        await query.answer("⚠️ এই ডিপোজিটটি ইতিমধ্যে অ্যাপ্রুভ (Approved) করা হয়েছে!", show_alert=True)
+        await query.answer("⚠️ This Deposit English Approve (Approved) English has been!", show_alert=True)
         return
     elif status == "rejected":
-        await query.answer("⚠️ এই ডিপোজিটটি ইতিমধ্যে রিজেক্ট (Rejected) করা হয়েছে!", show_alert=True)
+        await query.answer("⚠️ This Deposit English Reject (Rejected) English has been!", show_alert=True)
         return
 
     s = get_settings()
@@ -2944,7 +2942,7 @@ async def adm_deposit_approve(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             f"💳 {sb('Total Current Balance:')} <b>{format_amount(new_bal, s)}</b>\n"
             f"🆔 Deposit ID: <code>{dep_id}</code>\n"
             f"{divider()}\n"
-            f"🛍️ <b>এখনই শপ থেকে আপনার পছন্দের পণ্য কিনতে পারেন!</b>",
+            f"🛍️ <b>nowEnglish Shop from Your English Product English English!</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=main_menu_keyboard(uid_d)
         )
@@ -2970,14 +2968,14 @@ async def adm_deposit_reject(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         dep = fb_get(f"deposits/{dep_id}", {})
 
     if not dep:
-        await query.answer("❌ ডিপোজিট রেকর্ড পাওয়া যায়নি!", show_alert=True)
+        await query.answer("❌ Deposit English English English!", show_alert=True)
         return
     status = dep.get("status")
     if status == "approved":
-        await query.answer("⚠️ এই ডিপোজিটটি ইতিমধ্যে অনুমোদিত (Approved) হয়েছে!", show_alert=True)
+        await query.answer("⚠️ This Deposit English English (Approved) has been!", show_alert=True)
         return
     elif status == "rejected":
-        await query.answer("⚠️ এই ডিপোজিটটি ইতিমধ্যে বাতিল (Rejected) করা হয়েছে!", show_alert=True)
+        await query.answer("⚠️ This Deposit English Cancel (Rejected) English has been!", show_alert=True)
         return
 
     if not uid_d and dep.get("uid"):
@@ -2997,8 +2995,8 @@ async def adm_deposit_reject(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 uid_d,
                 f"❌ {bold(sb('Deposit Rejected'))}\n"
                 f"{divider()}\n"
-                f"আপনার ডিপোজিট রিকোয়েস্ট (ID: <code>{dep_id}</code>) বাতিল করা হয়েছে।\n"
-                f"সঠিক TrxID অথবা পেমেন্টের প্রমাণ দিয়ে আবার চেষ্টা করুন অথবা <a href='{s.get('support_link','https://t.me/bd_top_admin')}'>সাপোর্টে</a> যোগাযোগ করুন।",
+                f"Your Deposit English (ID: <code>{dep_id}</code>) Cancel English has been।\n"
+                f"English TrxID or PaymentEnglish Proof with English Try English or <a href='{s.get('support_link','https://t.me/bd_top_admin')}'>SupportEnglish</a> AddEnglishAdd।",
                 parse_mode=ParseMode.HTML,
                 reply_markup=main_menu_keyboard(uid_d)
             )
@@ -3060,36 +3058,36 @@ async def adm_fbstatus(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     total_prods = sum(len(c.get("products", {})) for c in categories.values()) if isinstance(categories, dict) else 0
     
     text = (
-        f"🔥 <b>ফায়ারবেজ ডেটাবেজ স্ট্যাটাস ও সিস্টেম রিপোর্ট</b>\n"
+        f"🔥 <b>English English English English English English</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"• <b>মেমোরি স্পিড:</b> 🟢 0.01ms (আল্ট্রা-ফাস্ট O(1) ক্যাশ সক্রিয়)\n"
-        f"• <b>কানেকশন ডায়াগনস্টিক:</b> {health.get('diagnostic', 'OK')}\n"
-        f"• <b>সিঙ্ক ইঞ্জিন মোড:</b> {health.get('mode', 'Hybrid')}\n"
+        f"• <b>English English:</b> 🟢 0.01ms (English-English O(1) English English)\n"
+        f"• <b>English English:</b> {health.get('diagnostic', 'OK')}\n"
+        f"• <b>English English English:</b> {health.get('mode', 'Hybrid')}\n"
         f"• <b>Firebase URL:</b> <code>{FIREBASE_URL}</code>\n"
-        f"• <b>লোকাল ফাইল ব্যাকআপ:</b> 🟢 <code>bot_data.json</code> (সিঙ্কড)\n"
+        f"• <b>English File English:</b> 🟢 <code>bot_data.json</code> (English)\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📊 <b>লোড হওয়া বর্তমান লাইভ ডেটা:</b>\n"
-        f"• 👥 মোট রেজিস্টার্ড ইউজার: <b>{len(users)} জন</b>\n"
-        f"• 📁 ক্যাটাগরি সংখ্যা: <b>{len(categories)} টি</b>\n"
-        f"• 🤖 মোট প্রোডাক্ট ও স্ক্রিপ্ট: <b>{total_prods} টি</b>\n"
-        f"• 💳 মোট ডিপোজিট রেকর্ড: <b>{len(deposits)} টি</b>\n"
-        f"• 🛍️ সম্পন্ন হওয়া অর্ডার: <b>{len(orders)} টি</b>\n"
-        f"• 💰 পেমেন্ট মেথড সংখ্যা: <b>{len(payment_methods)} টি</b>\n"
-        f"• ⚙️ গ্লোবাল সেটিংস: <b>সিঙ্কড ও সক্রিয়</b>\n"
+        f"📊 <b>English English Current English English:</b>\n"
+        f"• 👥 Total English User: <b>{len(users)} users</b>\n"
+        f"• 📁 Category English: <b>{len(categories)} </b>\n"
+        f"• 🤖 Total Product English English: <b>{total_prods} </b>\n"
+        f"• 💳 Total Deposit English: <b>{len(deposits)} </b>\n"
+        f"• 🛍️ Completed English English: <b>{len(orders)} </b>\n"
+        f"• 💰 Payment Method English: <b>{len(payment_methods)} </b>\n"
+        f"• ⚙️ English Settings: <b>English English English</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚡ <i>বট এখন ১০০% নন-ব্লকিং মেমোরিতে চলছে। বাটন ক্লিক ও মেনু লোড সাথে সাথে কোনো ল্যাগ ছাড়া রেসপন্স করবে।</i>"
+        f"⚡ <i>Bot now English% English-English English English। Button Click English Menu English with with any English English English English।</i>"
     )
 
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 এখনই ফুল ব্যাকগ্রাউন্ড সিঙ্ক করুন", callback_data="adm_fbreforce")],
-        [InlineKeyboardButton("⬅️ ব্যাক", callback_data="adm_panel")]
+        [InlineKeyboardButton("🔄 nowEnglish English English English English", callback_data="adm_fbreforce")],
+        [InlineKeyboardButton("⬅️ English", callback_data="adm_panel")]
     ])
     await safe_edit_text(query, text, reply_markup=kb)
 
 @admin_only
 async def adm_fbreforce(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer("🔄 ব্যাকগ্রাউন্ড ফায়ারবেজ সিঙ্ক চালু হয়েছে...", show_alert=True)
+    await query.answer("🔄 English English English On has been...", show_alert=True)
     
     # Non-blocking sync: Enqueue all root keys to background worker
     with _cache_lock:
@@ -3111,7 +3109,7 @@ async def adm_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cats        = fb_get("categories", {})
     s = get_settings()
     sym   = s.get("currency_symbol","$")
-    local = s.get("local_currency","BDT")
+    local = s.get("local_currency","USD")
     rate  = s.get("exchange_rate",125)
 
     total_bal   = sum(u.get("balance",0) for u in users.values()) if isinstance(users, dict) else 0
@@ -3128,22 +3126,22 @@ async def adm_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = (
         f"📊 {bold(sb('BOT PERFORMANCE & ANALYTICS'))}\n"
         f"{divider()}\n"
-        f"👥 {sb('Total Users:')} <b>{len(users)} জন</b>\n"
-        f"🚫 {sb('Banned Users:')} <b>{banned} জন</b>\n"
+        f"👥 {sb('Total Users:')} <b>{len(users)} users</b>\n"
+        f"🚫 {sb('Banned Users:')} <b>{banned} users</b>\n"
         f"💰 {sb('Total System Balance:')} <b>{sym}{total_bal:.2f}</b> (~{round(total_bal * rate):,} {local})\n"
         f"{mini_divider()}\n"
-        f"🛒 {sb('Total Orders Delivered:')} <b>{len(purchases)} টি</b>\n"
+        f"🛒 {sb('Total Orders Delivered:')} <b>{len(purchases)} </b>\n"
         f"💵 {sb('Total Product Revenue:')} <b>{sym}{total_rev:.2f}</b> (~{round(total_rev * rate):,} {local})\n"
-        f"📂 {sb('Categories:')} <b>{len(cats)} টি</b> | 🎁 {sb('Scripts & Files:')} <b>{total_prods} টি</b>\n"
+        f"📂 {sb('Categories:')} <b>{len(cats)} </b> | 🎁 {sb('Scripts & Files:')} <b>{total_prods} </b>\n"
         f"{mini_divider()}\n"
         f"💳 {sb('Deposits:')} ⏳ Pending: <b>{pending_d}</b> | ✅ Approved: <b>{approved_d}</b>\n"
         f"📤 {sb('Withdrawals:')} ⏳ Pending: <b>{pending_w}</b> | ✅ Approved: <b>{approved_w}</b>\n"
         f"{divider()}\n"
-        f"⚡ <i>ফায়ারবেজ রিয়েলটাইম ক্লাউড ইন-মেমোরি ক্যাশ ইঞ্জিন সক্রিয়।</i>"
+        f"⚡ <i>English English English English-English English English English।</i>"
     )
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 রিফ্রেশ স্ট্যাটাস", callback_data="adm_stats"),
-         InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")]
+        [InlineKeyboardButton("🔄 English English", callback_data="adm_stats"),
+         InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")]
     ])
     await safe_edit_text(query, text, reply_markup=kb)
 
@@ -3160,33 +3158,33 @@ async def adm_checkdata(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         links = {}
 
     text = (
-        f"🔗 <b>CHECK DATA লিংক বাটন ম্যানেজমেন্ট</b>\n"
+        f"🔗 <b>CHECK DATA Link Button English</b>\n"
         f"{divider()}\n"
-        f"📌 এখানে তৈরি করা লিংক বাটনগুলো ইউজাররা তাদের <b>CHECK DATA</b> অপশনে দেখতে পাবে।\n"
-        f"যেকোনো বাটনে ক্লিক করলে সরাসরি ওই লিংকটি (যেমন: বট হোস্টিং সাইট, ডোমেইন, টিউটোরিয়াল) ওপেন হবে।\n"
+        f"📌 here Create English Link ButtonEnglish UserEnglish English <b>CHECK DATA</b> English English English।\n"
+        f"any ButtonEnglish Click English directly English Link (English: Bot English English, English, English) English will be।\n"
         f"{divider()}\n\n"
     )
 
     buttons = []
-    buttons.append([InlineKeyboardButton("➕ নতুন লিংক বাটন তৈরি করুন", callback_data="adm_addlink_start")])
+    buttons.append([InlineKeyboardButton("➕ New Link Button Create English", callback_data="adm_addlink_start")])
 
     if links:
-        text += f"📋 <b>বর্তমান সক্রিয় লিংক বাটনসমূহ ({len(links)} টি):</b>\n\n"
+        text += f"📋 <b>Current English Link ButtonEnglish ({len(links)} ):</b>\n\n"
         for lid, linfo in links.items():
             if not isinstance(linfo, dict):
                 continue
-            title = linfo.get("title", "লিংক")
+            title = linfo.get("title", "Link")
             url = linfo.get("url", "")
             text += f"🔹 <b>{title}</b>\n   🔗 <code>{url}</code>\n"
             buttons.append([
-                InlineKeyboardButton(f"✏️ নাম: {title[:12]}", callback_data=f"adm_edlt_{lid}"),
-                InlineKeyboardButton("🔗 লিংক এডিট", callback_data=f"adm_edlu_{lid}"),
+                InlineKeyboardButton(f"✏️ Name: {title[:12]}", callback_data=f"adm_edlt_{lid}"),
+                InlineKeyboardButton("🔗 Link Edit", callback_data=f"adm_edlu_{lid}"),
                 InlineKeyboardButton("🗑️", callback_data=f"adm_dellink_{lid}")
             ])
     else:
-        text += "⚠️ <i>কোনো লিংক বাটন তৈরি করা নেই। উপরের বাটনে ক্লিক করে তৈরি করুন।</i>"
+        text += "⚠️ <i>any Link Button Create English none। above ButtonEnglish Click and Create English।</i>"
 
-    buttons.append([InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")])
+    buttons.append([InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")])
     kb = InlineKeyboardMarkup(buttons)
 
     if query:
@@ -3200,12 +3198,12 @@ async def adm_addlink_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     ctx.user_data["awaiting"] = "adm_addlink_title"
     text = (
-        f"➕ <b>নতুন CHECK DATA লিংক বাটন তৈরি (ধাপ ১/২)</b>\n"
+        f"➕ <b>New CHECK DATA Link Button Create (English English/English)</b>\n"
         f"{divider()}\n"
-        f"📝 <b>বাটনের নাম / বিষয়বস্তু লিখুন:</b>\n"
-        f"<i>(যেমন: 🌐 ভোট হোস্টিং প্ল্যাটফর্ম বা 📺 টিউটোরিয়াল ভিডিও বা 💬 হেল্প গ্রুপ)</i>"
+        f"📝 <b>ButtonEnglish Name / English Enter:</b>\n"
+        f"<i>(English: 🌐 English English English English 📺 English English English 💬 English Group)</i>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_checkdata")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_checkdata")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3216,12 +3214,12 @@ async def adm_edlink_title_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     ctx.user_data["awaiting"] = f"adm_edlt_{lid}"
     link = fb_get(f"check_data_links/{lid}", {})
     text = (
-        f"✏️ <b>বাটন টাইটেল এডিট</b>\n"
+        f"✏️ <b>Button English Edit</b>\n"
         f"{divider()}\n"
-        f"বর্তমান নাম: <b>{link.get('title', '')}</b>\n\n"
-        f"📝 <b>নতুন বাটনের নাম লিখে পাঠান:</b>"
+        f"Current Name: <b>{link.get('title', '')}</b>\n\n"
+        f"📝 <b>New ButtonEnglish Name English Send:</b>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_checkdata")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_checkdata")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3232,13 +3230,13 @@ async def adm_edlink_url_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["awaiting"] = f"adm_edlu_{lid}"
     link = fb_get(f"check_data_links/{lid}", {})
     text = (
-        f"🔗 <b>বাটন লিংক (URL) এডিট</b>\n"
+        f"🔗 <b>Button Link (URL) Edit</b>\n"
         f"{divider()}\n"
-        f"বাটন: <b>{link.get('title', '')}</b>\n"
-        f"বর্তমান লিংক: <code>{link.get('url', '')}</code>\n\n"
-        f"🌐 <b>নতুন লিংকটি লিখে পাঠান (যেমন: https://...):</b>"
+        f"Button: <b>{link.get('title', '')}</b>\n"
+        f"Current Link: <code>{link.get('url', '')}</code>\n\n"
+        f"🌐 <b>New Link English Send (English: https://...):</b>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_checkdata")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_checkdata")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3246,7 +3244,7 @@ async def adm_dellink_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     lid = query.data.replace("adm_dellink_", "")
     fb_delete(f"check_data_links/{lid}")
-    await query.answer("🗑️ লিংক বাটন সফলভাবে ডিলিট করা হয়েছে!", show_alert=True)
+    await query.answer("🗑️ Link Button Successfully Delete English has been!", show_alert=True)
     await adm_checkdata(update, ctx)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3262,25 +3260,25 @@ async def adm_forcejoin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     is_enabled = s.get("force_join_enabled", True)
     channels = get_force_join_channels()
     
-    status_text = "🟢 সক্রিয় (Active)" if is_enabled else "🔴 নিষ্ক্রিয় (Disabled)"
-    toggle_label = "⏸️ Force Join বন্ধ করুন" if is_enabled else "▶️ Force Join চালু করুন"
+    status_text = "🟢 English (Active)" if is_enabled else "🔴 Off (Disabled)"
+    toggle_label = "⏸️ Force Join Closed English" if is_enabled else "▶️ Force Join On English"
     
     text = (
-        f"📢 <b>FORCE JOIN চ্যানেল ও গ্রুপ ম্যানেজমেন্ট</b>\n"
+        f"📢 <b>FORCE JOIN Channel English Group English</b>\n"
         f"{divider()}\n"
-        f"📌 <b>বর্তমান অবস্থা:</b> {status_text}\n"
-        f"💡 ইউজাররা বটে কাজ করার পূর্বে বাধ্যতামূলকভাবে এই চ্যানেলগুলোতে জয়েন করবে।\n"
-        f"⚠️ <i>বটকে অবশ্যই চ্যানেল ও গ্রুপে <b>এডমিন (Admin)</b> করে রাখতে হবে যাতে মেম্বারশিপ চেক করতে পারে!</i>\n"
+        f"📌 <b>Current English:</b> {status_text}\n"
+        f"💡 UserEnglish BotEnglish English English English English This ChannelEnglish Join English।\n"
+        f"⚠️ <i>BotEnglish English Channel English GroupEnglish <b>Admin (Admin)</b> and English will be English English Check English English!</i>\n"
         f"{divider()}\n\n"
     )
     
     buttons = [
         [InlineKeyboardButton(f"🔘 {toggle_label}", callback_data="afj_toggle")],
-        [InlineKeyboardButton("➕ নতুন চ্যানেল / গ্রুপ যোগ করুন", callback_data="afj_add_start")],
+        [InlineKeyboardButton("➕ New Channel / Group Add", callback_data="afj_add_start")],
     ]
     
     if channels:
-        text += f"📋 <b>বাধ্যতামূলক চ্যানেলসমূহ ({len(channels)} টি):</b>\n\n"
+        text += f"📋 <b>English ChannelEnglish ({len(channels)} ):</b>\n\n"
         for cid, ch in channels.items():
             if not isinstance(ch, dict):
                 continue
@@ -3289,15 +3287,15 @@ async def adm_forcejoin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             url = ch.get("url", "https://t.me/...")
             text += f"🔹 <b>{name}</b>\n   🆔 <code>{chat_id}</code>\n   🔗 <code>{url}</code>\n"
             buttons.append([
-                InlineKeyboardButton(f"✏️ নাম: {name[:10]}", callback_data=f"afj_edname_{cid}"),
-                InlineKeyboardButton("🆔 আইডি", callback_data=f"afj_edid_{cid}"),
-                InlineKeyboardButton("🔗 লিংক", callback_data=f"afj_edurl_{cid}"),
+                InlineKeyboardButton(f"✏️ Name: {name[:10]}", callback_data=f"afj_edname_{cid}"),
+                InlineKeyboardButton("🆔 ID", callback_data=f"afj_edid_{cid}"),
+                InlineKeyboardButton("🔗 Link", callback_data=f"afj_edurl_{cid}"),
                 InlineKeyboardButton("🗑️", callback_data=f"afj_del_{cid}")
             ])
     else:
-        text += "⚠️ <i>কোনো চ্যানেল সেট করা নেই। উপরের বাটনে ক্লিক করে চ্যানেল যোগ করুন।</i>\n"
+        text += "⚠️ <i>any Channel English English none। above ButtonEnglish Click and Channel Add।</i>\n"
         
-    buttons.append([InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")])
+    buttons.append([InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")])
     kb = InlineKeyboardMarkup(buttons)
     
     if query:
@@ -3312,8 +3310,8 @@ async def afj_toggle(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     curr = s.get("force_join_enabled", True)
     new_val = not curr
     fb_update("settings", {"force_join_enabled": new_val})
-    status_str = "চালু" if new_val else "বন্ধ"
-    await query.answer(f"📢 Force Join সিস্টেম {status_str} করা হয়েছে!", show_alert=True)
+    status_str = "On" if new_val else "Closed"
+    await query.answer(f"📢 Force Join English {status_str} English has been!", show_alert=True)
     await adm_forcejoin(update, ctx)
 
 @admin_only
@@ -3322,13 +3320,13 @@ async def afj_add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     ctx.user_data["awaiting"] = "afj_add_id"
     text = (
-        f"➕ <b>নতুন Force Join চ্যানেল যোগ (ধাপ ১/৩)</b>\n"
+        f"➕ <b>New Force Join Channel Add (English English/English)</b>\n"
         f"{divider()}\n"
-        f"📌 <b>চ্যানেল বা গ্রুপের Username অথবা Chat ID লিখুন:</b>\n"
-        f"<i>(যেমন: <code>@bd_top_admin</code> অথবা প্রাইভেট হলে <code>-1001234567890</code>)</i>\n\n"
-        f"⚠️ <b>মনে রাখবেন:</b> বটকে অবশ্যই ওই চ্যানেলে এডমিন বানাতে হবে।"
+        f"📌 <b>Channel English GroupEnglish Username or Chat ID Enter:</b>\n"
+        f"<i>(English: <code>@bd_top_admin</code> or English English <code>-1001234567890</code>)</i>\n\n"
+        f"⚠️ <b>English English:</b> BotEnglish English English ChannelEnglish Admin EnglishnotEnglish will be।"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3336,7 +3334,7 @@ async def afj_del_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     cid = query.data.replace("afj_del_", "")
     fb_delete(f"force_join_channels/{cid}")
-    await query.answer("🗑️ চ্যানেলটি সফলভাবে মুছে ফেলা হয়েছে!", show_alert=True)
+    await query.answer("🗑️ Channel Successfully English English has been!", show_alert=True)
     await adm_forcejoin(update, ctx)
 
 @admin_only
@@ -3347,12 +3345,12 @@ async def afj_edname_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["awaiting"] = f"afj_edname_{cid}"
     ch = fb_get(f"force_join_channels/{cid}", {})
     text = (
-        f"✏️ <b>চ্যানেল বাটন নাম এডিট</b>\n"
+        f"✏️ <b>Channel Button Name Edit</b>\n"
         f"{divider()}\n"
-        f"বর্তমান নাম: <b>{ch.get('name', '')}</b>\n\n"
-        f"📝 <b>নতুন বাটনের নাম লিখে পাঠান (যেমন: Join=ಌ বা Join ♕):</b>"
+        f"Current Name: <b>{ch.get('name', '')}</b>\n\n"
+        f"📝 <b>New ButtonEnglish Name English Send (English: Join=ಌ English Join ♕):</b>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3363,12 +3361,12 @@ async def afj_edid_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["awaiting"] = f"afj_edid_{cid}"
     ch = fb_get(f"force_join_channels/{cid}", {})
     text = (
-        f"🆔 <b>চ্যানেল আইডি এডিট</b>\n"
+        f"🆔 <b>Channel ID Edit</b>\n"
         f"{divider()}\n"
-        f"বর্তমান আইডি: <code>{ch.get('id', '')}</code>\n\n"
-        f"📝 <b>নতুন Username বা Chat ID লিখে পাঠান:</b>"
+        f"Current ID: <code>{ch.get('id', '')}</code>\n\n"
+        f"📝 <b>New Username English Chat ID English Send:</b>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @admin_only
@@ -3379,12 +3377,12 @@ async def afj_edurl_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data["awaiting"] = f"afj_edurl_{cid}"
     ch = fb_get(f"force_join_channels/{cid}", {})
     text = (
-        f"🔗 <b>চ্যানেল ইনভাইট লিংক এডিট</b>\n"
+        f"🔗 <b>Channel English Link Edit</b>\n"
         f"{divider()}\n"
-        f"বর্তমান লিংক: <code>{ch.get('url', '')}</code>\n\n"
-        f"🌐 <b>নতুন ইনভাইট লিংক লিখে পাঠান:</b>"
+        f"Current Link: <code>{ch.get('url', '')}</code>\n\n"
+        f"🌐 <b>New English Link English Send:</b>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3402,20 +3400,20 @@ async def adm_roles(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         admins = {}
     
     text = (
-        f"👑 <b>এডমিন ও রোল ম্যানেজমেন্ট (RBAC System)</b>\n"
+        f"👑 <b>Admin English English English (RBAC System)</b>\n"
         f"{divider()}\n"
-        f"📌 <b>এডমিন রোলের বিবরণ:</b>\n"
-        f"• 👑 <b>Owner:</b> সম্পূর্ণ মালিকানা ও সকল পারমিশন।\n"
-        f"• 🛠️ <b>Manager:</b> প্রোডাক্ট, ক্যাটাগরি, ডিপোজিট ও লিংক ম্যানেজ করতে পারে।\n"
-        f"• 👁️ <b>View Only:</b> শুধুমাত্র তথ্য ও স্ট্যাটিস্টিকস দেখতে পারে (এডিট ব্লক)।\n"
+        f"📌 <b>Admin English Description:</b>\n"
+        f"• 👑 <b>Owner:</b> English Englishnot English English English।\n"
+        f"• 🛠️ <b>Manager:</b> Product, Category, Deposit English Link English English English।\n"
+        f"• 👁️ <b>View Only:</b> English Information English English English English (Edit English)।\n"
         f"{divider()}\n\n"
     )
     
     buttons = []
     if is_owner(caller_uid):
-        buttons.append([InlineKeyboardButton("➕ নতুন এডমিন যুক্ত করুন", callback_data="adm_addadmin_start")])
+        buttons.append([InlineKeyboardButton("➕ Add new admin", callback_data="adm_addadmin_start")])
     
-    text += f"📋 <b>বর্তমান এডমিন তালিকা ({len(admins)} জন):</b>\n\n"
+    text += f"📋 <b>Current Admin English ({len(admins)} users):</b>\n\n"
     for aid_str, ainfo in admins.items():
         if not isinstance(ainfo, dict):
             continue
@@ -3424,17 +3422,17 @@ async def adm_roles(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         arole = ainfo.get("role", "viewer")
         
         badge = "👑 Owner" if arole == "owner" else ("🛠️ Manager" if arole == "manager" else "👁️ View Only")
-        text += f"👤 <b>{aname}</b> (<code>{aid}</code>)\n   🔰 রোল: <b>{badge}</b>\n"
+        text += f"👤 <b>{aname}</b> (<code>{aid}</code>)\n   🔰 English: <b>{badge}</b>\n"
         
         if is_owner(caller_uid) and str(aid) not in [str(x) for x in ADMIN_IDS] and arole != "owner":
             next_role = "viewer" if arole == "manager" else "manager"
-            next_label = "👁️ View Only করুন" if next_role == "viewer" else "🛠️ Manager করুন"
+            next_label = "👁️ View Only English" if next_role == "viewer" else "🛠️ Manager English"
             buttons.append([
                 InlineKeyboardButton(f"🔄 {next_label}", callback_data=f"adm_chrole_{aid}_{next_role}"),
-                InlineKeyboardButton("🗑️ রিমুভ", callback_data=f"adm_deladmin_{aid}")
+                InlineKeyboardButton("🗑️ Remove", callback_data=f"adm_deladmin_{aid}")
             ])
             
-    buttons.append([InlineKeyboardButton("⬅️ এডমিন প্যানেল", callback_data="adm_panel")])
+    buttons.append([InlineKeyboardButton("⬅️ Admin panel", callback_data="adm_panel")])
     kb = InlineKeyboardMarkup(buttons)
     
     if query:
@@ -3448,12 +3446,12 @@ async def adm_addadmin_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     ctx.user_data["awaiting"] = "adm_addadmin_id"
     text = (
-        f"➕ <b>নতুন এডমিন যুক্ত করুন</b>\n"
+        f"➕ <b>Add new admin</b>\n"
         f"{divider()}\n"
-        f"📝 <b>যে ইউজারকে এডমিন বানাতে চান তার Telegram User ID লিখে পাঠান:</b>\n"
-        f"<i>(ইউজার /id কমান্ড দিলে তার আইডি দেখতে পাবে)</i>"
+        f"📝 <b>English UserEnglish Admin EnglishnotEnglish English English Telegram User ID English Send:</b>\n"
+        f"<i>(User /id English English English ID English English)</i>"
     )
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_roles")]])
+    kb = InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_roles")]])
     await safe_edit_text(query, text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 @owner_only
@@ -3476,13 +3474,13 @@ async def adm_setrole_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fb_set(f"admins/{target_uid}", admin_obj)
     fb_update(f"users/{target_uid}", {"is_admin": True, "role": role})
     
-    role_name = "Manager (ম্যানেজার)" if role == "manager" else "View Only (ভিউয়ার)"
-    await query.answer(f"✅ {uname} কে সফলভাবে {role_name} করা হয়েছে!", show_alert=True)
+    role_name = "Manager (English)" if role == "manager" else "View Only (English)"
+    await query.answer(f"✅ {uname} English Successfully {role_name} English has been!", show_alert=True)
     
     try:
         await ctx.bot.send_message(
             chat_id=target_uid,
-            text=f"🎉 <b>অভিনন্দন!</b> আপনাকে বটের <b>{role_name}</b> হিসেবে নিয়োগ দেওয়া হয়েছে।\nব্যবহার করতে <b>/admin</b> কমান্ড দিন!",
+            text=f"🎉 <b>English!</b> EnglishnotEnglish BotEnglish <b>{role_name}</b> English English English has been।\nEnglish English <b>/admin</b> English English!",
             parse_mode=ParseMode.HTML
         )
     except:
@@ -3501,7 +3499,7 @@ async def adm_chrole_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fb_update(f"users/{target_uid}", {"role": next_role})
     
     role_name = "Manager" if next_role == "manager" else "View Only"
-    await query.answer(f"✅ রোল পরিবর্তন করে {role_name} করা হয়েছে!", show_alert=True)
+    await query.answer(f"✅ English English and {role_name} English has been!", show_alert=True)
     await adm_roles(update, ctx)
 
 @owner_only
@@ -3513,7 +3511,7 @@ async def adm_deladmin_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fb_delete(f"admins/{target_uid}")
     fb_update(f"users/{target_uid}", {"is_admin": False, "role": "user"})
     
-    await query.answer("🗑️ এডমিন রিমুভ করা হয়েছে!", show_alert=True)
+    await query.answer("🗑️ Admin Remove English has been!", show_alert=True)
     await adm_roles(update, ctx)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -3629,8 +3627,8 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = "adm_addprod_desc"
         await update.message.reply_text(
             f"📝 {bold('STEP 2/7: Product Description & Details')}\n{divider()}\n"
-            f"✏️ প্রোডাক্ট বা স্ক্রিপ্টের আকর্ষণীয় ডেসক্রিপশন লিখুন:\n"
-            f"<i>(অথবা খালি রাখতে <code>skip</code> লিখে পাঠান)</i>",
+            f"✏️ Product English English English English Enter:\n"
+            f"<i>(or English English <code>skip</code> English Send)</i>",
             parse_mode=ParseMode.HTML)
 
     # STEP 2: Description -> Ask for Photo/Video Banner
@@ -3640,9 +3638,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = "adm_addprod_image"
         await update.message.reply_text(
             f"🖼️/🎥 {bold('STEP 3/7: Product Banner (Photo or Video)')}\n{divider()}\n"
-            f"📸 প্রোডাক্টের জন্য একটি <b>ছবি (Photo)</b> অথবা <b>ভিডিও (Video)</b> সরাসরি পাঠান:\n"
-            f"🔗 অথবা ছবি/ভিডিওর ওয়েব ডাইরেক্ট লিঙ্ক পাঠান।\n"
-            f"<i>(অথবা কোনো ব্যানার ছাড়া রাখতে <code>skip</code> লিখে পাঠান)</i>",
+            f"📸 ProductEnglish for English <b>English (Photo)</b> or <b>English (Video)</b> directly Send:\n"
+            f"🔗 or English/English English English English Send।\n"
+            f"<i>(or any EnglishnotEnglish English English <code>skip</code> English Send)</i>",
             parse_mode=ParseMode.HTML)
 
     # STEP 3: Photo/Video -> Ask for Run Guide & Commands (Option 4 requested by user)
@@ -3679,10 +3677,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         ctx.user_data["awaiting"] = "adm_addprod_runguide"
         await update.message.reply_text(
-            f"🛠️ {bold('STEP 4/7: রান করার নিয়ম ও কমান্ডসমূহ (Setup & Run Guide)')}\n{divider()}\n"
-            f"📌 <b>ইউজাররা এই বট বা স্ক্রিপ্টটি কীভাবে রান করবে তার সকল নির্দেশনা দিন:</b>\n"
-            f"💡 যেমন: প্রয়োজনীয় কম্যান্ডসমূহ, প্যাকেজ ইনস্টলেশন, টার্মিনাল রান গাইড বা যেকোনো টুলস সম্পর্কিত বিস্তারিত লিখে পাঠান।\n\n"
-            f"<i>(কেনার পর ইউজার এই গাইডটি দেখতে পাবে। এটি না রাখতে চাইলে <code>skip</code> লিখে পাঠান)</i>",
+            f"🛠️ {bold('STEP 4/7: English English English English English (Setup & Run Guide)')}\n{divider()}\n"
+            f"📌 <b>UserEnglish This Bot English English English English English English English Instructions English:</b>\n"
+            f"💡 English: Required English, English English, EnglishnotEnglish English English English any English English Details English Send।\n\n"
+            f"<i>(EnglishnotEnglish English User This English English English। English not English English <code>skip</code> English Send)</i>",
             parse_mode=ParseMode.HTML)
 
     # STEP 4: Run Guide -> Ask for Demo Bot Link
@@ -3693,8 +3691,8 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = "adm_addprod_demolink"
         await update.message.reply_text(
             f"🤖 {bold('STEP 5/7: Demo Bot Link / Username')}\n{divider()}\n"
-            f"🔗 টেস্ট করার জন্য ডেমো বট লিংক বা @username লিখুন:\n"
-            f"<i>(যেমন: <code>https://t.me/YourDemoBot</code> বা <code>@YourDemoBot</code>, অথবা বাদ দিতে <code>skip</code>)</i>",
+            f"🔗 English English for English Bot Link English @username Enter:\n"
+            f"<i>(English: <code>https://t.me/YourDemoBot</code> English <code>@YourDemoBot</code>, or English English <code>skip</code>)</i>",
             parse_mode=ParseMode.HTML)
 
     # STEP 5: Demo Link -> Ask for Price (USD)
@@ -3708,11 +3706,11 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = "adm_addprod_price"
         s = get_settings()
         rate = s.get("exchange_rate", 125)
-        local = s.get("local_currency", "BDT")
+        local = s.get("local_currency", "USD")
         await update.message.reply_text(
             f"💰 {bold('STEP 6/7: Product Price (USD)')}\n{divider()}\n"
-            f"💵 প্রোডাক্টের মূল্য USD তে লিখুন (যেমন: <code>5.0</code> বা <code>2.5</code>):\n"
-            f"<i>বর্তমান এক্সচেঞ্জ রেট: 1 USD = {rate} {local} (যেমন: $5 = {5*rate} {local})</i>",
+            f"💵 ProductEnglish Price USD English Enter (English: <code>5.0</code> English <code>2.5</code>):\n"
+            f"<i>Current Exchange rate: 1 USD = {rate} {local} (English: $5 = {5*rate} {local})</i>",
             parse_mode=ParseMode.HTML)
 
     # STEP 6: Price -> Ask for Files Upload (Supports Multiple Files)
@@ -3723,16 +3721,16 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ctx.user_data["adm_new_prod"]["files"] = []
             ctx.user_data["awaiting"] = "adm_addprod_file_or_stock"
             await update.message.reply_text(
-                f"📁 {bold('STEP 7/7: একাধিক স্ক্রিপ্ট ফাইল আপলোড বা স্টক আইটেম')}\n{divider()}\n"
-                f"📤 <b>বটের ফাইলসমূহ পাঠান (Multi-File Support):</b>\n"
-                f"• একটি স্ক্রিপ্টের যতগুলো ফাইল বা ফোল্ডার দরকার একে একে পাঠাতে পারেন (যেমন: <code>.zip</code>, <code>.py</code>, <code>.json</code>, <code>.txt</code> ইত্যাদি)।\n"
-                f"• প্রতি ফাইল পাঠানোর পর বট তা সংরক্ষণ করবে।\n"
-                f"• সব ফাইল পাঠানো শেষ হলে <code>done</code> লিখে পাঠিয়ে সম্পন্ন করুন।\n\n"
-                f"📝 <b>অথবা (অ্যাকাউন্ট / টেক্সট কি-এর ক্ষেত্রে):</b>\n"
-                f"সরাসরি টেক্সট লাইনে স্টক আইটেম লিখে পাঠিয়ে দিন।",
+                f"📁 {bold('STEP 7/7: English English File English English Stock English')}\n{divider()}\n"
+                f"📤 <b>BotEnglish FileEnglish Send (Multi-File Support):</b>\n"
+                f"• English English English File English English English English English English English (English: <code>.zip</code>, <code>.py</code>, <code>.json</code>, <code>.txt</code> English)।\n"
+                f"• English File sentEnglish English Bot English Save English।\n"
+                f"• All File sent End English <code>done</code> English English Completed English।\n\n"
+                f"📝 <b>or (English / English English-English English):</b>\n"
+                f"directly English English Stock English English English English।",
                 parse_mode=ParseMode.HTML)
         except ValueError:
-            await update.message.reply_text("❌ অনুগ্রহ করে সঠিক সংখ্যা লিখুন (যেমন: 5.0)।")
+            await update.message.reply_text("❌ Please English English Enter (English: 5.0)।")
 
     # STEP 7: Multi-File Upload OR Done OR Text Stock
     elif awaiting == "adm_addprod_file_or_stock":
@@ -3752,10 +3750,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             total_f = len(prod_data["files"])
 
             await update.message.reply_text(
-                f"✅ <b>ফাইল সফলভাবে যোগ হয়েছে! (#{total_f})</b>\n"
-                f"📁 নাম: <code>{file_name}</code>\n"
-                f"📎 মোট ফাইল সংখ্যা: <b>{total_f}</b> টি\n{mini_divider()}\n"
-                f"💡 <i>আরও কোনো ফাইল থাকলে পাঠাতে পারেন, অথবা আপলোড শেষ করতে <code>done</code> লিখে পাঠান।</i>",
+                f"✅ <b>File Successfully Add has been! (#{total_f})</b>\n"
+                f"📁 Name: <code>{file_name}</code>\n"
+                f"📎 Total File English: <b>{total_f}</b> \n{mini_divider()}\n"
+                f"💡 <i>More any File English English English, or English End English <code>done</code> English Send।</i>",
                 parse_mode=ParseMode.HTML
             )
             return
@@ -3763,7 +3761,7 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         elif text and text.strip().lower() == "done":
             files = prod_data.get("files", [])
             if not files:
-                await update.message.reply_text("⚠️ আপনি এখনও কোনো ফাইল পাঠাননি! ফাইল ডকুমেন্ট হিসেবে পাঠান অথবা টেক্সট স্টক লিখুন।")
+                await update.message.reply_text("⚠️ You nowEnglish any File SendEnglish! File English English Send or English Stock Enter।")
                 return
 
             main_file = files[0]
@@ -3778,19 +3776,19 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             ctx.user_data["awaiting"] = None
 
             price_str = format_amount(prod_data.get("price", 0), s)
-            guide_info = "✅ সংযুক্ত আছে" if prod_data.get("run_guide") else "❌ নেই"
+            guide_info = "✅ is attached" if prod_data.get("run_guide") else "❌ none"
             await update.message.reply_text(
-                f"🎉 {bold('প্রোডাক্ট সফলভাবে তৈরি ও শপে যুক্ত হয়েছে!')}\n"
+                f"🎉 {bold('Product Successfully Create English ShopEnglish English has been!')}\n"
                 f"{divider()}\n"
-                f"📦 {sb('নাম:')} {bold(pname)}\n"
-                f"💰 {sb('মূল্য:')} {bold(price_str)}\n"
-                f"📁 {sb('সংযুক্ত ফাইল:')} মোট <b>{len(files)}</b> টি ফাইল (Auto Instant Delivery ⚡)\n"
-                f"🛠️ {sb('রান গাইড ও কমান্ড:')} {guide_info}\n"
-                f"🖼️ {sb('ব্যানার ছবি:')} {'✅ Yes' if prod_data.get('image') else '❌ No'}\n"
-                f"🤖 {sb('ডেমো লিংক:')} {prod_data.get('demo_link', 'None')}\n"
-                f"📊 {sb('ডিজিটাল স্টক:')} 999 টি সক্রিয়\n"
+                f"📦 {sb('Name:')} {bold(pname)}\n"
+                f"💰 {sb('Price:')} {bold(price_str)}\n"
+                f"📁 {sb('English File:')} Total <b>{len(files)}</b>  File (Auto Instant Delivery ⚡)\n"
+                f"🛠️ {sb('English English English English:')} {guide_info}\n"
+                f"🖼️ {sb('EnglishnotEnglish English:')} {'✅ Yes' if prod_data.get('image') else '❌ No'}\n"
+                f"🤖 {sb('English Link:')} {prod_data.get('demo_link', 'None')}\n"
+                f"📊 {sb('English Stock:')} 999  English\n"
                 f"{divider()}\n"
-                f"🛒 <i>প্রোডাক্টটি এখন লাইভ হয়েছে এবং ইউজাররা শপ মেনু থেকে কিনতে পারবে!</i>",
+                f"🛒 <i>Product now English has been and UserEnglish Shop Menu from English English!</i>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=main_menu_keyboard(update.effective_user.id)
             )
@@ -3870,10 +3868,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"categories/{cat_id}/products/{pid}", {"name": text})
         await update.message.reply_text(
-            f"✅ <b>স্ক্রিপ্ট/প্রোডাক্টের নাম পরিবর্তন করা হয়েছে:</b>\n<code>{text}</code>",
+            f"✅ <b>English/ProductEnglish Name English English has been:</b>\n<code>{text}</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
         )
 
     # Script/Product Editor: Price
@@ -3886,15 +3884,15 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             fb_update(f"categories/{cat_id}/products/{pid}", {"price": val})
             s = get_settings()
             rate = s.get("exchange_rate", 125)
-            local_sym = s.get("local_currency", "৳")
+            local_sym = s.get("local_currency", "$")
             await update.message.reply_text(
-                f"✅ <b>মূল্য সফলভাবে আপডেট করা হয়েছে:</b>\n💰 <code>{val}$</code> ({round(val*rate, 2)} {local_sym})",
+                f"✅ <b>Price Successfully English English has been:</b>\n💰 <code>{val}$</code> ({round(val*rate, 2)} {local_sym})",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         except ValueError:
-            await update.message.reply_text("❌ অনুগ্রহ করে সঠিক সংখ্যা লিখুন (যেমন: 5.0)।")
+            await update.message.reply_text("❌ Please English English Enter (English: 5.0)।")
 
     # Script/Product Editor: Demo Link
     elif awaiting and awaiting.startswith("aedt_demo_"):
@@ -3909,10 +3907,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             val = f"https://t.me/{text}"
         fb_update(f"categories/{cat_id}/products/{pid}", {"demo_link": val})
         await update.message.reply_text(
-            f"✅ <b>ডেমো লিংক আপডেট করা হয়েছে:</b>\n🔗 {val if val else '<i>রিমুভ করা হয়েছে</i>'}",
+            f"✅ <b>English Link English English has been:</b>\n🔗 {val if val else '<i>Remove English has been</i>'}",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
         )
 
     # Script/Product Editor: Description
@@ -3922,10 +3920,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"categories/{cat_id}/products/{pid}", {"description": text})
         await update.message.reply_text(
-            f"✅ <b>ডেসক্রিপশন সফলভাবে আপডেট করা হয়েছে!</b>",
+            f"✅ <b>English Successfully English English has been!</b>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
         )
 
     # Script/Product Editor: Run Guide & Commands
@@ -3936,10 +3934,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         val = "" if text.strip().lower() == "clear" else text
         fb_update(f"categories/{cat_id}/products/{pid}", {"run_guide": val})
         await update.message.reply_text(
-            f"✅ <b>রান করার নিয়ম ও কমান্ডসমূহ আপডেট করা হয়েছে!</b>\n\n{val if val else '<i>রিমুভ করা হয়েছে</i>'}",
+            f"✅ <b>English English English English English English English has been!</b>\n\n{val if val else '<i>Remove English has been</i>'}",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
         )
 
     # Script/Product Editor: Media (Photo/Video)
@@ -3955,10 +3953,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "media_type": None
             })
             await update.message.reply_text(
-                "✅ <b>প্রোডাক্টের মিডিয়া ব্যানার সফলভাবে মুছে ফেলা হয়েছে!</b>",
+                "✅ <b>ProductEnglish English EnglishnotEnglish Successfully English English has been!</b>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         elif update.message.video:
             vid_id = update.message.video.file_id
@@ -3968,10 +3966,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "media_type": "video"
             })
             await update.message.reply_text(
-                "✅ <b>নতুন ভিডিও ব্যানার সফলভাবে সংযুক্ত করা হয়েছে! 🎥</b>",
+                "✅ <b>New English EnglishnotEnglish Successfully English English has been! 🎥</b>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         elif update.message.animation:
             anim_id = update.message.animation.file_id
@@ -3981,10 +3979,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "media_type": "animation"
             })
             await update.message.reply_text(
-                "✅ <b>নতুন অ্যানিমেশন/GIF ব্যানার সফলভাবে সংযুক্ত করা হয়েছে! ✨</b>",
+                "✅ <b>New English/GIF EnglishnotEnglish Successfully English English has been! ✨</b>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         elif update.message.photo:
             photo_file_id = update.message.photo[-1].file_id
@@ -3994,10 +3992,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "media_type": "photo"
             })
             await update.message.reply_text(
-                "✅ <b>নতুন ফটো ব্যানার সফলভাবে সংযুক্ত করা হয়েছে! 🖼️</b>",
+                "✅ <b>New English EnglishnotEnglish Successfully English English has been! 🖼️</b>",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         elif update.message.document and update.message.document.mime_type:
             mime = update.message.document.mime_type
@@ -4009,10 +4007,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     "media_type": "video"
                 })
                 await update.message.reply_text(
-                    "✅ <b>নতুন ভিডিও ব্যানার সংযুক্ত করা হয়েছে! 🎥</b>",
+                    "✅ <b>New English EnglishnotEnglish English English has been! 🎥</b>",
                     parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                        InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
                 )
             else:
                 img_id = update.message.document.file_id
@@ -4022,10 +4020,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     "media_type": "photo"
                 })
                 await update.message.reply_text(
-                    "✅ <b>নতুন ছবি ব্যানার সংযুক্ত করা হয়েছে! 🖼️</b>",
+                    "✅ <b>New English EnglishnotEnglish English English has been! 🖼️</b>",
                     parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                        InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
                 )
         elif text and text.strip():
             is_vid = any(text.lower().endswith(ext) for ext in [".mp4", ".mov", ".webm", ".avi"])
@@ -4035,13 +4033,13 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 "media_type": "video" if is_vid else "photo"
             })
             await update.message.reply_text(
-                f"✅ <b>মিডিয়া লিঙ্ক সফলভাবে সেভ করা হয়েছে!</b> ({'ভিডিও 🎥' if is_vid else 'ছবি 🖼️'})",
+                f"✅ <b>English English Successfully English English has been!</b> ({'English 🎥' if is_vid else 'English 🖼️'})",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         else:
-            await update.message.reply_text("❌ অনুগ্রহ করে ছবি বা ভিডিও পাঠান অথবা remove লিখুন।")
+            await update.message.reply_text("❌ Please English English English Send or remove Enter।")
 
     # Script/Product Editor: Entry File
     elif awaiting and awaiting.startswith("aedt_entry_"):
@@ -4050,10 +4048,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"categories/{cat_id}/products/{pid}", {"entry_file": text})
         await update.message.reply_text(
-            f"✅ <b>মেইন এন্ট্রি ফাইল আপডেট করা হয়েছে:</b> <code>{text}</code>",
+            f"✅ <b>English English File English English has been:</b> <code>{text}</code>",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
         )
 
     # Script/Product Editor: Upload New File / Stock
@@ -4074,10 +4072,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             })
             ctx.user_data["awaiting"] = None
             await update.message.reply_text(
-                f"✅ <b>নতুন স্ক্রিপ্ট ফাইল সফলভাবে আপলোড করা হয়েছে:</b>\n📁 <code>{file_name}</code> (অটো ডেলিভারি সক্রিয় ⚡)",
+                f"✅ <b>New English File Successfully English English has been:</b>\n📁 <code>{file_name}</code> (Auto Delivery English ⚡)",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
         elif text and text.strip():
             new_items = [line.strip() for line in text.split("\n") if line.strip()]
@@ -4088,10 +4086,10 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             })
             ctx.user_data["awaiting"] = None
             await update.message.reply_text(
-                f"✅ <b>স্টক আইটেম আপডেট সম্পন্ন!</b> (মোট স্টক: {len(new_items)})",
+                f"✅ <b>Stock English English Completed!</b> (Total Stock: {len(new_items)})",
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("⚙️ এডিটরে ফিরুন", callback_data=f"adm_prod_{cat_id}_{pid}")]])
+                    InlineKeyboardButton("⚙️ Back to editor", callback_data=f"adm_prod_{cat_id}_{pid}")]])
             )
 
     # ─── CHECK DATA LINK BUTTON BUILDER & EDITORS ───
@@ -4100,18 +4098,18 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["new_link_title"] = text
         ctx.user_data["awaiting"] = "adm_addlink_url"
         await update.message.reply_text(
-            f"🔗 <b>নতুন CHECK DATA লিংক বাটন তৈরি (ধাপ ২/২)</b>\n"
+            f"🔗 <b>New CHECK DATA Link Button Create (English English/English)</b>\n"
             f"{divider()}\n"
-            f"বাটনের নাম: <b>{text}</b>\n\n"
-            f"🌐 <b>এবার সরাসরি কাঙ্খিত লিংকটি (URL) পাঠান:</b>\n"
-            f"<i>(যেমন: <code>https://render.com</code> বা <code>https://t.me/yourchannel</code>)</i>",
+            f"ButtonEnglish Name: <b>{text}</b>\n\n"
+            f"🌐 <b>English directly English Link (URL) Send:</b>\n"
+            f"<i>(English: <code>https://render.com</code> English <code>https://t.me/yourchannel</code>)</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_checkdata")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_checkdata")]])
         )
 
     # Link Creation: Step 2 URL -> Save
     elif awaiting == "adm_addlink_url":
-        title = ctx.user_data.get("new_link_title", "লিংক")
+        title = ctx.user_data.get("new_link_title", "Link")
         url = text.strip()
         if not url.startswith("http://") and not url.startswith("https://") and not url.startswith("tg://"):
             url = f"https://{url}"
@@ -4120,12 +4118,12 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         ctx.user_data["new_link_title"] = None
         await update.message.reply_text(
-            f"✅ <b>নতুন CHECK DATA লিংক বাটন সফলভাবে তৈরি হয়েছে!</b>\n\n"
-            f"👉 <b>বাটনের নাম:</b> {title}\n"
-            f"🔗 <b>লিংক:</b> <code>{url}</code>\n\n"
-            f"⚡ <i>ইউজাররা এখন <b>CHECK DATA</b> বাটনে ক্লিক করলেই সরাসরি এই লিংকে যেতে পারবে।</i>",
+            f"✅ <b>New CHECK DATA Link Button Successfully Create has been!</b>\n\n"
+            f"👉 <b>ButtonEnglish Name:</b> {title}\n"
+            f"🔗 <b>Link:</b> <code>{url}</code>\n\n"
+            f"⚡ <i>UserEnglish now <b>CHECK DATA</b> ButtonEnglish Click English directly This LinkEnglish English English।</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ লিংক বাটন কন্ট্রোলে ফিরুন", callback_data="adm_checkdata")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Link Button managerEnglish Back", callback_data="adm_checkdata")]])
         )
 
     # Link Title Edit
@@ -4134,9 +4132,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"check_data_links/{lid}", {"title": text})
         await update.message.reply_text(
-            f"✅ <b>বাটন টাইটেল আপডেট সম্পন্ন!</b>\n👉 <b>{text}</b>",
+            f"✅ <b>Button English English Completed!</b>\n👉 <b>{text}</b>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ লিংক বাটন কন্ট্রোলে ফিরুন", callback_data="adm_checkdata")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Link Button managerEnglish Back", callback_data="adm_checkdata")]])
         )
 
     # Link URL Edit
@@ -4148,9 +4146,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             url = f"https://{url}"
         fb_update(f"check_data_links/{lid}", {"url": url})
         await update.message.reply_text(
-            f"✅ <b>বাটন লিংক আপডেট সম্পন্ন!</b>\n🔗 <code>{url}</code>",
+            f"✅ <b>Button Link English Completed!</b>\n🔗 <code>{url}</code>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ লিংক বাটন কন্ট্রোলে ফিরুন", callback_data="adm_checkdata")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Link Button managerEnglish Back", callback_data="adm_checkdata")]])
         )
 
     # ─── FORCE JOIN CHANNELS BUILDER & EDITORS ───
@@ -4159,13 +4157,13 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["new_fj_id"] = text.strip()
         ctx.user_data["awaiting"] = "afj_add_name"
         await update.message.reply_text(
-            f"➕ <b>নতুন Force Join চ্যানেল যোগ (ধাপ ২/৩)</b>\n"
+            f"➕ <b>New Force Join Channel Add (English English/English)</b>\n"
             f"{divider()}\n"
-            f"চ্যানেল আইডি: <code>{text.strip()}</code>\n\n"
-            f"📝 <b>বাটনের নাম বা লেবেল লিখুন:</b>\n"
-            f"<i>(যেমন: <code>Join=ಌ</code> বা <code>Join ♕</code> বা <code>Official Channel</code>)</i>",
+            f"Channel ID: <code>{text.strip()}</code>\n\n"
+            f"📝 <b>ButtonEnglish Name English English Enter:</b>\n"
+            f"<i>(English: <code>Join=ಌ</code> English <code>Join ♕</code> English <code>Official Channel</code>)</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
         )
 
     # Step 2: Button Name -> Ask for Invite Link
@@ -4173,13 +4171,13 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["new_fj_name"] = text.strip()
         ctx.user_data["awaiting"] = "afj_add_url"
         await update.message.reply_text(
-            f"➕ <b>নতুন Force Join চ্যানেল যোগ (ধাপ ৩/৩)</b>\n"
+            f"➕ <b>New Force Join Channel Add (English English/English)</b>\n"
             f"{divider()}\n"
-            f"বাটনের নাম: <b>{text.strip()}</b>\n\n"
-            f"🌐 <b>চ্যানেলের ইনভাইট লিংক লিখে পাঠান:</b>\n"
-            f"<i>(যেমন: <code>https://t.me/yourchannel</code>)</i>",
+            f"ButtonEnglish Name: <b>{text.strip()}</b>\n\n"
+            f"🌐 <b>ChannelEnglish English Link English Send:</b>\n"
+            f"<i>(English: <code>https://t.me/yourchannel</code>)</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ বাতিল", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="adm_forcejoin")]])
         )
 
     # Step 3: Invite Link -> Save to Firebase
@@ -4196,13 +4194,13 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["new_fj_id"] = None
         ctx.user_data["new_fj_name"] = None
         await update.message.reply_text(
-            f"✅ <b>নতুন Force Join চ্যানেল সফলভাবে সংযুক্ত হয়েছে!</b>\n\n"
-            f"🔹 <b>বাটন নাম:</b> {ch_name}\n"
-            f"🆔 <b>আইডি:</b> <code>{ch_id}</code>\n"
-            f"🔗 <b>লিংক:</b> <code>{url}</code>\n\n"
-            f"⚡ <i>ইউজাররা এখন বটে প্রবেশ করতে হলে এই চ্যানেলে জয়েন করতে হবে।</i>",
+            f"✅ <b>New Force Join Channel Successfully English has been!</b>\n\n"
+            f"🔹 <b>Button Name:</b> {ch_name}\n"
+            f"🆔 <b>ID:</b> <code>{ch_id}</code>\n"
+            f"🔗 <b>Link:</b> <code>{url}</code>\n\n"
+            f"⚡ <i>UserEnglish now BotEnglish Enter English English This ChannelEnglish Join English will be।</i>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join কন্ট্রোলে ফিরুন", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join English Back", callback_data="adm_forcejoin")]])
         )
 
     # Channel Name Edit
@@ -4211,9 +4209,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"force_join_channels/{cid}", {"name": text})
         await update.message.reply_text(
-            f"✅ <b>চ্যানেল বাটন নাম আপডেট সম্পন্ন!</b>\n👉 <b>{text}</b>",
+            f"✅ <b>Channel Button Name English Completed!</b>\n👉 <b>{text}</b>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join কন্ট্রোলে ফিরুন", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join English Back", callback_data="adm_forcejoin")]])
         )
 
     # Channel ID Edit
@@ -4222,9 +4220,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data["awaiting"] = None
         fb_update(f"force_join_channels/{cid}", {"id": text.strip()})
         await update.message.reply_text(
-            f"✅ <b>চ্যানেল আইডি আপডেট সম্পন্ন!</b>\n🆔 <code>{text.strip()}</code>",
+            f"✅ <b>Channel ID English Completed!</b>\n🆔 <code>{text.strip()}</code>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join কন্ট্রোলে ফিরুন", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join English Back", callback_data="adm_forcejoin")]])
         )
 
     # Channel URL Edit
@@ -4236,9 +4234,9 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             url = f"https://{url}"
         fb_update(f"force_join_channels/{cid}", {"url": url})
         await update.message.reply_text(
-            f"✅ <b>চ্যানেল লিংক আপডেট সম্পন্ন!</b>\n🔗 <code>{url}</code>",
+            f"✅ <b>Channel Link English Completed!</b>\n🔗 <code>{url}</code>",
             parse_mode=ParseMode.HTML,
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join কন্ট্রোলে ফিরুন", callback_data="adm_forcejoin")]])
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Force Join English Back", callback_data="adm_forcejoin")]])
         )
 
     # ─── ADMIN ROLE ASSIGNMENT ───
@@ -4249,20 +4247,20 @@ async def admin_text_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             u = get_user(target_uid)
             uname = u.get("name") or u.get("username") or f"User {target_uid}"
             kb = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛠️ Manager (এডিট ও ম্যানেজ)", callback_data=f"adm_setrole_manager_{target_uid}")],
-                [InlineKeyboardButton("👁️ View Only (শুধুমাত্র ভিউ)", callback_data=f"adm_setrole_viewer_{target_uid}")],
-                [InlineKeyboardButton("❌ বাতিল", callback_data="adm_roles")]
+                [InlineKeyboardButton("🛠️ Manager (Edit English English)", callback_data=f"adm_setrole_manager_{target_uid}")],
+                [InlineKeyboardButton("👁️ View Only (English English)", callback_data=f"adm_setrole_viewer_{target_uid}")],
+                [InlineKeyboardButton("❌ Cancel", callback_data="adm_roles")]
             ])
             await update.message.reply_text(
-                f"👤 <b>ইউজার পাওয়া গেছে:</b> {uname} (<code>{target_uid}</code>)\n\n"
-                f"🔰 <b>এই এডমিনকে কোন রোল দিতে চান নির্বাচন করুন:</b>\n"
-                f"• <b>Manager:</b> প্রোডাক্ট, ক্যাটাগরি, ডিপোজিট এডিট করতে পারবে।\n"
-                f"• <b>View Only:</b> শুধুমাত্র স্ট্যাটাস ও ইউজার লিস্ট দেখতে পারবে।",
+                f"👤 <b>User English English:</b> {uname} (<code>{target_uid}</code>)\n\n"
+                f"🔰 <b>This AdminEnglish English English English English English English:</b>\n"
+                f"• <b>Manager:</b> Product, Category, Deposit Edit English English।\n"
+                f"• <b>View Only:</b> English English English User English English English।",
                 parse_mode=ParseMode.HTML,
                 reply_markup=kb
             )
         else:
-            await update.message.reply_text("❌ অনুগ্রহ করে সঠিক সংখ্যার Telegram User ID পাঠান।")
+            await update.message.reply_text("❌ Please English English Telegram User ID Send।")
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #  ADMIN SETTINGS CALLBACKS
@@ -4289,7 +4287,7 @@ async def adm_settings_field(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "welcome_text":   "Welcome Text",
         "currency_name":  "Currency Name (e.g. USD)",
         "currency_symbol":"Currency Symbol (e.g. $)",
-        "local_currency": "Local Currency (e.g. BDT)",
+        "local_currency": "Local Currency (e.g. USD)",
         "exchange_rate":  "Exchange Rate (number)",
         "min_deposit":    "Minimum Deposit (USD)",
         "min_withdraw":   "Minimum Withdraw (USD)",
@@ -4434,7 +4432,7 @@ async def adm_manage_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("💰 " + sb("Add Balance"),   callback_data="adm_addbal"),
          InlineKeyboardButton("⛔ " + sb("Ban/Unban"),     callback_data="adm_ban")],
-        [InlineKeyboardButton("👑 এডমিন ও রোল কন্ট্রোল", callback_data="adm_roles"),
+        [InlineKeyboardButton("👑 Admin English English English", callback_data="adm_roles"),
          InlineKeyboardButton("📋 " + sb("List Users"),    callback_data="adm_listusers")],
         [InlineKeyboardButton("⬅️ " + sb("Back"),          callback_data="adm_panel")],
     ])
@@ -4494,11 +4492,11 @@ async def adm_withdraw_view(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     wid = query.data.replace("awdraw_view_", "")
     w = fb_get(f"withdrawals/{wid}", {})
     if not w:
-        await query.answer("উইথড্র রিকোয়েস্ট পাওয়া যায়নি!", show_alert=True)
+        await query.answer("English English English English!", show_alert=True)
         return
     s = get_settings()
     sym = s.get("currency_symbol", "$")
-    local = s.get("local_currency", "BDT")
+    local = s.get("local_currency", "USD")
     rate = s.get("exchange_rate", 125)
     uid_w = w.get("uid", "?")
     try:
@@ -4522,7 +4520,7 @@ async def adm_withdraw_view(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     buttons = []
     if status == "pending":
         buttons.append([
-            InlineKeyboardButton("✅ Approve (পেমেন্ট সম্পন্ন)", callback_data=f"awdraw_ok_{wid}_{uid_w}_{amt_usd}"),
+            InlineKeyboardButton("✅ Approve (Payment Completed)", callback_data=f"awdraw_ok_{wid}_{uid_w}_{amt_usd}"),
             InlineKeyboardButton("❌ Reject & Refund", callback_data=f"awdraw_no_{wid}_{uid_w}_{amt_usd}")
         ])
     buttons.append([InlineKeyboardButton("⬅️ " + sb("Back"), callback_data="adm_withdrawals")])
@@ -4550,17 +4548,17 @@ async def adm_withdraw_approve(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ctx.bot.send_message(
             chat_id=uid_w,
             text=(
-                f"✅ <b>উইথড্র সফলভাবে সম্পন্ন হয়েছে!</b>\n"
+                f"✅ <b>English Successfully Completed has been!</b>\n"
                 f"{divider()}\n"
-                f"💰 আপনার উইথড্র রিকোয়েস্ট <b>{sym}{amt:.2f}</b> অনুমোদন করা হয়েছে এবং পেমেন্ট পাঠিয়ে দেওয়া হয়েছে।\n"
-                f"ধন্যবাদ আমাদের সাথে থাকার জন্য! 💎"
+                f"💰 Your English English <b>{sym}{amt:.2f}</b> Approve English has been and Payment English English has been।\n"
+                f"English English with English for! 💎"
             ),
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
         logger.debug(f"User notify error on withdraw approve: {e}")
     
-    await query.answer("✅ উইথড্র সফলভাবে অনুমোদন করা হয়েছে!", show_alert=True)
+    await query.answer("✅ English Successfully Approve English has been!", show_alert=True)
     await adm_withdrawals(update, ctx)
 
 @admin_only
@@ -4591,18 +4589,18 @@ async def adm_withdraw_reject(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ctx.bot.send_message(
             chat_id=uid_w,
             text=(
-                f"❌ <b>উইথড্র রিকোয়েস্ট বাতিল করা হয়েছে</b>\n"
+                f"❌ <b>English English Cancel English has been</b>\n"
                 f"{divider()}\n"
-                f"⚠️ আপনার উইথড্র রিকোয়েস্ট (<b>{sym}{amt:.2f}</b>) বাতিল করা হয়েছে এবং অর্থ আপনার একাউন্ট ব্যালেন্সে রিফান্ড করা হয়েছে।\n"
-                f"💰 বর্তমান ব্যালেন্স: <b>{sym}{new_bal:.2f}</b>\n"
-                f"বিস্তারিত তথ্যের জন্য সাপোর্টে যোগাযোগ করুন।"
+                f"⚠️ Your English English (<b>{sym}{amt:.2f}</b>) Cancel English has been and English Your English BalanceEnglish English English has been।\n"
+                f"💰 Current Balance: <b>{sym}{new_bal:.2f}</b>\n"
+                f"Details InformationEnglish for SupportEnglish AddEnglishAdd।"
             ),
             parse_mode=ParseMode.HTML
         )
     except Exception as e:
         logger.debug(f"User notify error on withdraw reject: {e}")
     
-    await query.answer("❌ উইথড্র বাতিল ও ব্যালেন্স রিফান্ড করা হয়েছে!", show_alert=True)
+    await query.answer("❌ English Cancel English Balance English English has been!", show_alert=True)
     await adm_withdrawals(update, ctx)
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -4715,20 +4713,20 @@ async def user_withdraw_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TY
         try:
             amt = float(txt)
         except ValueError:
-            await update.message.reply_text("⚠️ অনুগ্রহ করে সঠিক সংখ্যা লিখুন (যেমন: 2.0)")
+            await update.message.reply_text("⚠️ Please English English Enter (English: 2.0)")
             return
         if amt < min_w:
-            await update.message.reply_text(f"⚠️ সর্বনিম্ন উইথড্র পরিমাণ {sym}{min_w:.2f}")
+            await update.message.reply_text(f"⚠️ Minimum English Amount {sym}{min_w:.2f}")
             return
         if amt > bal:
-            await update.message.reply_text(f"⚠️ অপর্যাপ্ত ব্যালেন্স! আপনার ব্যালেন্স {sym}{bal:.2f}")
+            await update.message.reply_text(f"⚠️ English Balance! Your Balance {sym}{bal:.2f}")
             return
         ctx.user_data["wdraw_amount"] = amt
         ctx.user_data["awaiting"] = "withdraw_account"
         meth = ctx.user_data.get("wdraw_method", "Payment")
         await update.message.reply_text(
-            f"📱 <b>{meth} অ্যাকাউন্ট বা নম্বর লিখুন:</b>\n"
-            f"(যে নম্বরে বা অ্যাড্রেসে টাকা গ্রহণ করতে চান তা লিখে পাঠান)",
+            f"📱 <b>{meth} English English Number Enter:</b>\n"
+            f"(English NumberEnglish English English USD English English English English English Send)",
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancel", callback_data="profile")]])
         )
@@ -4758,20 +4756,20 @@ async def user_withdraw_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TY
         fb_set(f"withdrawals/{wid}", w_record)
         
         rate = s.get("exchange_rate", 125)
-        local = s.get("local_currency", "BDT")
+        local = s.get("local_currency", "USD")
         local_amt = round(amt * rate)
         
         await update.message.reply_text(
-            f"✅ <b>উইথড্র রিকোয়েস্ট সফলভাবে জমা হয়েছে!</b>\n"
+            f"✅ <b>English English Successfully English has been!</b>\n"
             f"{divider()}\n"
-            f"🆔 <b>রিকোয়েস্ট আইডি:</b> <code>{wid}</code>\n"
-            f"💰 <b>পরিমাণ:</b> {sym}{amt:.2f} (~{local_amt:,} {local})\n"
-            f"📱 <b>মেথড:</b> {meth}\n"
-            f"🏦 <b>অ্যাকাউন্ট:</b> <code>{account}</code>\n"
-            f"⏳ <b>স্ট্যাটাস:</b> পেন্ডিং (Pending)\n"
-            f"💵 <b>অবশিষ্ট ব্যালেন্স:</b> {sym}{new_bal:.2f}\n"
+            f"🆔 <b>English ID:</b> <code>{wid}</code>\n"
+            f"💰 <b>Amount:</b> {sym}{amt:.2f} (~{local_amt:,} {local})\n"
+            f"📱 <b>Method:</b> {meth}\n"
+            f"🏦 <b>English:</b> <code>{account}</code>\n"
+            f"⏳ <b>English:</b> English (Pending)\n"
+            f"💵 <b>English Balance:</b> {sym}{new_bal:.2f}\n"
             f"{divider()}\n"
-            f"⚡ <i>এডমিন ভেরিফাই করে দ্রুত আপনার পেমেন্ট পাঠিয়ে দেবে।</i>",
+            f"⚡ <i>Admin Verify and English Your Payment English English।</i>",
             parse_mode=ParseMode.HTML,
             reply_markup=main_menu_keyboard(uid)
         )
@@ -4781,13 +4779,13 @@ async def user_withdraw_handle_text(update: Update, ctx: ContextTypes.DEFAULT_TY
                 await ctx.bot.send_message(
                     chat_id=aid,
                     text=(
-                        f"🚨 <b>নতুন উইথড্র রিকোয়েস্ট!</b>\n"
+                        f"🚨 <b>New English English!</b>\n"
                         f"{divider()}\n"
-                        f"👤 ইউজার: {html.escape(update.effective_user.full_name or 'Member')} (<code>{uid}</code>)\n"
-                        f"💰 পরিমাণ: {sym}{amt:.2f} (~{local_amt:,} {local})\n"
-                        f"📱 মেথড: {meth}\n"
-                        f"🏦 অ্যাকাউন্ট: <code>{account}</code>\n"
-                        f"🆔 আইডি: <code>{wid}</code>"
+                        f"👤 User: {html.escape(update.effective_user.full_name or 'Member')} (<code>{uid}</code>)\n"
+                        f"💰 Amount: {sym}{amt:.2f} (~{local_amt:,} {local})\n"
+                        f"📱 Method: {meth}\n"
+                        f"🏦 English: <code>{account}</code>\n"
+                        f"🆔 ID: <code>{wid}</code>"
                     ),
                     parse_mode=ParseMode.HTML,
                     reply_markup=InlineKeyboardMarkup([
@@ -4805,11 +4803,11 @@ async def verify_force_join_callback(update: Update, ctx: ContextTypes.DEFAULT_T
     uid = update.effective_user.id
     not_joined = await check_force_join(ctx.bot, uid)
     if not_joined:
-        await query.answer("⚠️ আপনি এখনো সব চ্যানেলে জয়েন করেননি! সবগুলো চ্যানেলে জয়েন করুন এবং আবার Verify বাটনে চাপুন।", show_alert=True)
+        await query.answer("⚠️ You nowEnglish All ChannelEnglish Join andEnglish! AllEnglish ChannelEnglish Join English and English Verify ButtonEnglish English।", show_alert=True)
         await send_force_join_screen(update, not_joined, is_edit=True)
         return
     
-    await query.answer("✅ ভেরিফিকেশন সফল হয়েছে! স্বাগতম।", show_alert=True)
+    await query.answer("✅ English Success has been! English।", show_alert=True)
     s = get_settings()
     bot_name = s.get("bot_name", "JAMES 💎")
     admin_banner = f"\n👑 {bold('Admin Access Enabled')} — Use /admin or button below\n" if is_admin(uid) else ""
@@ -4885,9 +4883,9 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     txt = update.message.text or update.message.caption or ""
     txt_clean = txt.strip().lower()
 
-    if txt_clean in ["/cancel", "cancel", "বাতিল", "❌ cancel", "❌ বাতিল"]:
+    if txt_clean in ["/cancel", "cancel", "Cancel", "❌ cancel", "❌ Cancel"]:
         ctx.user_data["awaiting"] = None
-        await update.message.reply_text("❌ অপারেশন বাতিল করা হয়েছে।", reply_markup=main_menu_keyboard(uid))
+        await update.message.reply_text("❌ English Cancel English has been।", reply_markup=main_menu_keyboard(uid))
         return
 
     # Normalize slanted bold to ASCII for comparison
@@ -4904,7 +4902,7 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     is_menu_btn = any(btn in ntxt for btn in [
         "BUY PRODUCT", "DEPOSIT MONEY", "WITHDRAW", "REFER", "MY PRODUCT",
         "MY PROFILE", "SUPPORT", "ABOUT", "CHECK DATA", "MY ID", "ADMIN PANEL"
-    ]) or "উইথড্র" in txt
+    ]) or "English" in txt
 
     if is_menu_btn:
         ctx.user_data["awaiting"] = None
@@ -4924,27 +4922,27 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await admin_text_handler(update, ctx)
         return
 
-    if "BUY PRODUCT" in ntxt or "শপ" in txt or "পণ্য" in txt:
+    if "BUY PRODUCT" in ntxt or "Shop" in txt or "Product" in txt:
         await shop_menu(update, ctx)
-    elif "DEPOSIT MONEY" in ntxt or "DEPOSIT" in ntxt or "ডিপোজিট" in txt or "টাকা জমা" in txt:
+    elif "DEPOSIT MONEY" in ntxt or "DEPOSIT" in ntxt or "Deposit" in txt or "USD English" in txt:
         await deposit_menu(update, ctx)
-    elif "WITHDRAW" in ntxt or "উইথড্র" in txt or "উইথড্রয়াল" in txt:
+    elif "WITHDRAW" in ntxt or "English" in txt or "English" in txt:
         await user_withdraw_start(update, ctx)
-    elif "REFER" in ntxt or "রেফার" in txt:
+    elif "REFER" in ntxt or "English" in txt:
         await refer_menu(update, ctx)
-    elif "MY PRODUCT" in ntxt or "আমার প্রোডাক্ট" in txt or "আমার পণ্য" in txt:
+    elif "MY PRODUCT" in ntxt or "My Product" in txt or "My products" in txt:
         await my_products(update, ctx)
-    elif "MY PROFILE" in ntxt or "PROFILE" in ntxt or "প্রোফাইল" in txt:
+    elif "MY PROFILE" in ntxt or "PROFILE" in ntxt or "EnglishFile" in txt:
         await my_profile(update, ctx)
-    elif "SUPPORT" in ntxt or "সাপোর্ট" in txt:
+    elif "SUPPORT" in ntxt or "Support" in txt:
         await support_menu(update, ctx)
-    elif "ABOUT" in ntxt or "সম্পর্কে" in txt:
+    elif "ABOUT" in ntxt or "About" in txt:
         await about_dev_callback(update, ctx)
-    elif "CHECK DATA" in ntxt or "চেক ডাটা" in txt:
+    elif "CHECK DATA" in ntxt or "Check Data" in txt:
         await check_data(update, ctx)
-    elif "MY ID" in ntxt or "ID" == ntxt or "আমার আইডি" in txt or "আইডি" in txt:
+    elif "MY ID" in ntxt or "ID" == ntxt or "My ID" in txt or "ID" in txt:
         await my_id_cmd(update, ctx)
-    elif "ADMIN PANEL" in ntxt or "ADMIN" in ntxt or "/admin" in txt.lower() or "এডমিন" in txt:
+    elif "ADMIN PANEL" in ntxt or "ADMIN" in ntxt or "/admin" in txt.lower() or "Admin" in txt:
         if is_admin(uid):
             await admin_panel(update, ctx)
         else:
@@ -4970,7 +4968,7 @@ async def callback_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not is_admin(uid) and data not in ["home", "support", "about", "about_dev", "verify_force_join"]:
         not_joined = await check_force_join(ctx.bot, uid)
         if not_joined:
-            await query.answer("⚠️ অনুগ্রহ করে প্রথমে চ্যানেলগুলোতে জয়েন করুন!", show_alert=True)
+            await query.answer("⚠️ Please English ChannelEnglish Join English!", show_alert=True)
             await send_force_join_screen(update, not_joined, is_edit=True)
             return
 
@@ -5238,12 +5236,12 @@ def main():
                 print("\n" + "="*65)
                 print("❌ TELEGRAM BOT TOKEN ERROR: 401 Unauthorized")
                 print("="*65)
-                print("⚠️ আপনার Telegram Bot Token-টি Telegram সার্ভার দ্বারা রিজেক্ট হয়েছে।")
-                print("কারণ হতে পারে: টোকেনটি BotFather থেকে রিভোক/রিসেট করা হয়েছে অথবা ভুল।")
-                print("\n👉 সমাধান (How to fix):")
-                print("1. Telegram-এ @BotFather-এ যান")
-                print("2. /mybots সিলেক্ট করুন -> API Token অপশনে নতুন টোকেনটি দেখুন বা /token দিয়ে কপি করুন")
-                print("3. নতুন Bot Token দিন।")
+                print("⚠️ Your Telegram Bot Token- Telegram English English Reject has been।")
+                print("English English English: English BotFather from English/English English has been or English।")
+                print("\n👉 English (How to fix):")
+                print("1. Telegram-English @BotFather-English English")
+                print("2. /mybots English English -> API Token English New English View English /token with English English")
+                print("3. New Bot Token English।")
                 print("="*65 + "\n")
                 logger.error("Invalid token. Retrying in 30 seconds...")
                 time.sleep(30)

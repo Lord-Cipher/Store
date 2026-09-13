@@ -1,0 +1,2 @@
+python-telegram-bot[job-queue]==21.11
+firebase-admin>=6.5,<7.0
